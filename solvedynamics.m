@@ -66,8 +66,9 @@ legend(leg,'Location','EastOutside');
 
 function dC=dyneqn(t,c,A,D)
 dC=zeros(size(c));
+cc=c*c';
 for i=1:length(c)
-  dC(i)=sum(sum((c*c').*A(:,:,i)))-sum(c(i)*c'*squeeze(A(i,:,:)))-sum(c(i)*c'*squeeze(A(:,i,:)))-sum(sum(D(:,:,i)))*c(i)+sum(squeeze(D(i,:,:))*c)+sum(squeeze(D(:,i,:))*c);
+  dC(i)=sum(sum(cc.*A(:,:,i)))-sum(c(i)*c'*squeeze(A(i,:,:)))*2-sum(sum(D(:,:,i)))*c(i)+sum(squeeze(D(i,:,:))*c)*2;
 end
 %total=[ 1 1 2 2 2]*c;
 %fprintf(' C=[%s]\ndC=[%s]\n',sprintf('%.3g ',c),sprintf('%.3g ',dC));%,total);
