@@ -1,6 +1,4 @@
 % Perform PCR simulation with given sequences and concentrations
-function pcr=pcranneal(seqs,concentrations,varargin)
-defaults=struct('temp',55,'maxsize',2,'ncycles',1,'verbose',false,'minconc',1e-12,'cutoff',1e-6,'mindisplayconc',1e-12,'labels',containers.Map(),'time',30,'ka',1e6);
 % Arguments:
 %  seqs - cell array of sequences (oligos)
 %  concentrations - array of initial concentration of each oligo
@@ -20,6 +18,8 @@ defaults=struct('temp',55,'maxsize',2,'ncycles',1,'verbose',false,'minconc',1e-1
 % 
 % Returns:
 %  pcr: struct containing setup, and ordered complexes in each cycle
+function pcr=pcrsimul(seqs,concentrations,varargin)
+defaults=struct('temp',55,'maxsize',2,'ncycles',1,'verbose',false,'minconc',1e-12,'cutoff',1e-6,'mindisplayconc',1e-12,'labels',containers.Map(),'time',30,'ka',1e6,'sodium',0.050,'mg',0.002);
 args=processargs(defaults,varargin);
 
 % Remove any blanks, make sequence upper case
@@ -42,6 +42,7 @@ end
 fprintf('Running simulation at T=%.0fC, Anneal time=%.0f sec, ka=%.1g /M/s\n', args.temp, args.time, args.ka);
 fprintf('Initial concentrations:\n');
 seqsprint(seqs,abs(concentrations),'labels',args.labels);
+
 dstrack=[];   % Track number of ds bonds
 trackseqs=seqs;
 trackconc(:,1)=abs(concentrations);
@@ -51,7 +52,7 @@ pcr=defaults;	% Return value
 for cycle=1:args.ncycles
   fprintf('\n******* Cycle %d ********\n',cycle);
   % Find all the complexes
-  c=complexes(seqs,'temp',args.temp,'maxsize',args.maxsize,'cutoff',args.cutoff,'verbose',args.verbose,'concentrations',abs(concentrations));
+  c=complexes(seqs,'temp',args.temp,'maxsize',args.maxsize,'cutoff',args.cutoff,'verbose',args.verbose,'concentrations',abs(concentrations),'sodium',args.sodium,'mg',args.mg);
   c=solvedynamics(c,args.time,'temp',args.temp,'ka',args.ka);
   
   % Initialize for this cycle
@@ -65,7 +66,7 @@ for cycle=1:args.ncycles
       continue;
     end
 
-    p=pairs(seqs,oc.perm,'temp',args.temp,'cutoff',args.cutoff,'verbose',args.verbose);
+    p=pairs(seqs,oc.perm,'temp',args.temp,'cutoff',args.cutoff,'verbose',args.verbose,'sodium',args.sodium,'mg',args.mg);
     c.ocomplex(i).pairs=p;	% Keep for reference
     
     % Compute number of double stranded bonds
