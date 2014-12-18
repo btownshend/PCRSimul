@@ -24,7 +24,7 @@ args=processargs(defaults,varargin);
 
 % Remove any blanks, make sequence upper case
 for i=1:length(seqs)
-  seqs{i}=strrep(seqs{i},' ','');
+  seqs{i}=upper(strrep(seqs{i},' ',''));
 end
 
 % Add common labels
