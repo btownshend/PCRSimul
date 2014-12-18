@@ -1,21 +1,39 @@
 % Perform PCR simulation with given sequences and concentrations
-% negative concentrations indicate 3' end is blocked
-% time: time to anneal in seconds
-% ka: DNA association constant (/M/s)
 function pcr=pcranneal(seqs,concentrations,varargin)
 defaults=struct('temp',55,'maxsize',2,'ncycles',1,'verbose',false,'minconc',1e-12,'cutoff',1e-6,'mindisplayconc',1e-12,'labels',containers.Map(),'time',30,'ka',1e6);
+% Arguments:
+%  seqs - cell array of sequences (oligos)
+%  concentrations - array of initial concentration of each oligo
+%		    negative concentrations indicate 3' end is blocked
+% Optional arguments: 
+%  time: time to anneal in seconds (default:30)
+%  temp: annealing temperature (default: 55)
+%  sodium: sodium concentration in M (default: 0.050)
+%  mg: magnesium concentration in M (default: 0.002)
+%  ka: DNA association constant (/M/s) (default 1e6)
+%  ncycles: number of cycles to run (default 1)
+%  minconc: minimum concentration in M of sequences to keep at the end of each cycle (default: 1e-6)
+%  mindisplayconc: minimum concentration to display sequences, intermediates, etc (default: 1e-12)
+%  labels: container.Map() that maps sequences to user-friendly names (default: a few preset labels)
+%	   reverse complements are automatically added as well
+%  verbose: true to make operation more verbose
+% 
+% Returns:
+%  pcr: struct containing setup, and ordered complexes in each cycle
 args=processargs(defaults,varargin);
-% Remove any blanks
+
+% Remove any blanks, make sequence upper case
 for i=1:length(seqs)
   seqs{i}=strrep(seqs{i},' ','');
 end
 
-% Add generic ones
+% Add common labels
 args.labels('CTTTTCCGTATATCTCGCCAG')='A_Primer';
 args.labels('CGGAAATTTCAAAGGTGCTTC')='B_Primer';
 args.labels('AATTTAATACGACTCACTATAGGGAAACAAACAAAGCTGTCACCGGA')='T7_W_Primer';
 args.labels('TTTTTATTTTTCTTTTTGCTGTTTCGTCC')='X_Primer';
-% Add RC
+
+% Add RC of all labels
 k=args.labels.keys();
 for i=1:length(k)
   args.labels(rc(k{i}))=[args.labels(k{i}),'-RC'];
