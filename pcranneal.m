@@ -2,8 +2,8 @@
 % negative concentrations indicate 3' end is blocked
 % time: time to anneal in seconds
 % ka: DNA association constant (/M/s)
-function pcranneal(seqs,concentrations,varargin)
-defaults=struct('temp',55,'maxsize',2,'ncycles',1,'verbose',false,'minconc',1e-12,'cutoff',1e-6,'mindisplayconc',1e-15,'labels',containers.Map(),'time',30,'ka',1e6);
+function pcr=pcranneal(seqs,concentrations,varargin)
+defaults=struct('temp',55,'maxsize',2,'ncycles',1,'verbose',false,'minconc',1e-12,'cutoff',1e-6,'mindisplayconc',1e-12,'labels',containers.Map(),'time',30,'ka',1e6);
 args=processargs(defaults,varargin);
 % Remove any blanks
 for i=1:length(seqs)
@@ -28,129 +28,111 @@ dstrack=[];   % Track number of ds bonds
 trackseqs=seqs;
 trackconc(:,1)=abs(concentrations);
 
+pcr=defaults;	% Return value
+
 for cycle=1:args.ncycles
   fprintf('\n******* Cycle %d ********\n',cycle);
   % Find all the complexes
   c=complexes(seqs,'temp',args.temp,'maxsize',args.maxsize,'cutoff',args.cutoff,'verbose',args.verbose,'concentrations',abs(concentrations));
-
-  % Convert pair probs to concentrations of pairs
-  pairconcs=c.pairfrac;
-  endpos=0;
-  initconds=zeros(size(pairconcs));
-  for i=1:length(seqs);
-    pos=endpos+(1:length(seqs{i}));
-    pairconcs(pos,:)=pairconcs(pos,:)*abs(concentrations(i));
-    initconds(pos,end)=abs(concentrations(i));
-    endpos=endpos+length(seqs{i});
-  end
-  kd=args.ka./pairconcs(:,1:end-1);
-  for i=1:size(kd,1)
-    kd(i,:)=kd(i,:)*pairconcs(i,end);
-    kd(:,i)=kd(:,i)*pairconcs(i,end);
-  end
-  kd(~isfinite(kd))=0;
+  c=solvedynamics(c,args.time,'temp',args.temp,'ka',args.ka);
   
-  ka=(kd>0)*args.ka;   % Same fixed ka for anything that can form
-  
-  % Solve ODE
-  endpts=cumsum(cellfun(@(z) length(z), seqs));
-  trackpts=zeros(size(pairconcs));
-  trackpts(endpts,end)=1;
-  track=find(trackpts(:));
-  fprintf('Tracking %s\n',sprintf('%d ',track));
-  for i=1:length(track)
-    fprintf('Seq%d 3''end @ %d: initial unpaired conc=%s, equilibrium fraction unpaired=%g, equilibrium conc=%s\n', i, endpts(i), concfmt(concentrations(i)),c.pairfrac(endpts(i),end),concfmt(pairconcs(track(i))));
-  end
-  % Set up sparse jacobian pattern
-  % Each entry of jpattern(i,j) is non-zero iff dy(i)/dt depends on y(j)
-  jpat=speye(length(initconds(:)));
-  jtmp=ones(1,length(initconds(:)));
-  for i=1:length(initconds(:))
-    dc1=rxequation(0,reshape(jtmp,size(pairconcs)),kd,ka);
-    jtmp(i)=0;
-    dc2=rxequation(0,reshape(jtmp,size(pairconcs)),kd,ka);
-    jtmp(i)=1;
-    jpat(i,dc1~=dc2)=1;
-  end
-  
-  options=odeset('Stats','on','RelTol',0.05,'AbsTol',1e-10,'NonNegative',1:length(initconds(:)),'NormControl','off','JPattern',jpat,'OutputFcn',@odeplot,'OutputSel',track);
-  tic
-  [t,y]=ode23s(@(t,y) rxequation(t,reshape(y,size(pairconcs)),kd,ka),[0,args.time],initconds(:),options);
-  toc
-  for i=1:length(track)
-    fprintf('Seq%d 3''end @ %d: final unpaired conc=%s\n', i, endpts(i), concfmt(y(end,track(i))));
-  end
-  kineticpairconcs=reshape(y(end,:),size(pairconcs));
-  
-  % Gather seq start positions
-  start=1;
-  startpos=[];
-  for i=1:length(seqs)
-    startpos(i)=start;
-    start=start+length(seqs{i});
-  end
-  startpos(end+1)=start;
-
   % Initialize for this cycle
-  endpos=0;
   newseqs={};newconc=[];
-
-  % Compute number of double stranded bonds
-  ssconc=sum(kineticpairconcs(:,end));
-  dsconc=sum(sum(kineticpairconcs(:,1:end-1)));
-  fprintf('Unpaired nucleotides: %s, paired: %s, total: %s\n', concfmt(ssconc), concfmt(dsconc), concfmt(ssconc+dsconc));
-
-  % Check each 3' end
-  for i=1:length(seqs)
-    if concentrations(i)<0
-      % Blocked 3' end
-      newseqs{end+1}=seqs{i};
-      newconc(end+1)=concentrations(i);
+  dsconc=0;ssconc=0;
+  
+  % Loop over all the ordered complexes
+  for i=1:length(c.ocomplex)
+    oc=c.ocomplex(i);
+    if oc.conc==0
       continue;
     end
 
-    endpos=endpos+length(seqs{i});
-    pc=kineticpairconcs(endpos,:);
-    sel=find(pc>0);
-    unpaired=1;
-    for j=1:length(sel)
-      pos=sel(j);
-      if pos==size(c.pairfrac,2)
-        % unpaired
+    p=pairs(seqs,oc.perm,'temp',args.temp,'cutoff',args.cutoff,'verbose',args.verbose);
+    c.ocomplex(i).pairs=p;	% Keep for reference
+    
+    % Compute number of double stranded bonds
+    ssconc1=sum(p.pairfrac(:,end))*oc.conc;
+    dsconc1=sum(sum(p.pairfrac(:,1:end-1)))*oc.conc;
+    if oc.conc>=args.mindisplayconc
+      fprintf('Complex %d [%s]: %s (%s@eq), unpaired nucleotides: %s, paired: %s, total: %s\n', i, sprintf('%d ',oc.perm),concfmt(oc.conc), concfmt(oc.eqconc), concfmt(ssconc1), concfmt(dsconc1), concfmt(ssconc1+dsconc1));
+    end
+    dsconc=dsconc+dsconc1;
+    ssconc=ssconc+ssconc1;
+
+    % Map positions to strand, strandpos
+    endpos=0;
+    strand=[]; strandpos=[];
+    for j=1:length(oc.perm)
+      seq=seqs{oc.perm(j)};
+      strand((1:length(seq))+endpos)=oc.perm(j);
+      strandpos((1:length(seq))+endpos)=1:length(seq);
+      endpos=endpos+length(seq);
+    end
+      
+    % Check each 3' end
+    endpos=0;
+    for j=1:length(oc.perm)
+      seq=seqs{oc.perm(j)};
+      endpos=endpos+length(seq);
+      
+      if concentrations(oc.perm(j))<0
+        % Blocked 3' end
         newseqs{end+1}=seqs{i};
-        newconc(end+1)=pc(pos);
-        fprintf('Strand %d.%d (%c) unannealed with frac=%g -> %s(eq),%s(kin)\n', i, length(seqs{i}), seqs{i}(end), c.pairfrac(endpos,pos),concfmt(pairconcs(endpos,pos)),concfmt(newconc(end)));
+        newconc(end+1)=concentrations(oc.perm(j));
+        fprintf('Strand %d.%d blocked extension\n',oc.perm(j),length(seq));
         continue;
       end
-      strand=find(pos<startpos,1)-1;
-      strandpos=pos-startpos(strand)+1;
-      newseqs{end+1}=[seqs{i},rc(seqs{strand}(1:strandpos-1))];
-      newconc(end+1)=pc(pos);
-      fprintf('Strand %d.%d (%c) anneals to strand %2d.%-3d (%c) with frac=%g -> %s(eq),%s(kin)\n', i, length(seqs{i}), seqs{i}(end), strand, strandpos, seqs{strand}(strandpos), c.pairfrac(endpos,pos),concfmt(pairconcs(endpos,pos)),concfmt(newconc(end)));
-      if newconc(end)>args.mindisplayconc
-        off1=0;alignpos=length(seqs{i})-1;off2=strandpos-1+length(seqs{i})-length(seqs{strand});
-        if off2<0
-          off1=-off2;
-          alignpos=alignpos-off2;
-          off2=0;
+
+      % Handle unpaired by keeping this component
+      newseqs{end+1}=seq;
+      newconc(end+1)=p.pairfrac(endpos,end)*oc.conc;
+      if newconc(end)>=args.mindisplayconc
+        fprintf('Strand %d.%d (%c) unpaired with frac=%g -> %s\n', ...
+                oc.perm(j), length(seq), seq(end), p.pairfrac(endpos,end),concfmt(newconc(end)));
+      end
+      
+      % Go through all the possible pairings
+      for k=1:length(p.pairfrac(endpos,:))-1
+        if p.pairfrac(endpos,k)==0
+          continue;
         end
-        fprintf(' %s%s\n',blanks(off1),seqs{i});
-        fprintf(' %s',blanks(off1));
-        for k=1:length(seqs{i})
-          if length(seqs{i})-k > length(seqs{strand})-strandpos
-            fprintf(' ');
-          elseif pos+length(seqs{i})-k>0 && c.pairfrac(endpos-length(seqs{i})+k,pos+length(seqs{i})-k)>c.pairfrac(endpos,pos)/2
-            fprintf('|');
-          else
-            fprintf(' ');
+        pconc=p.pairfrac(endpos,k)*oc.conc;   % Concentration of this pair
+        if pconc>=args.mindisplayconc
+          fprintf('Strand %d.%d (%c) anneals to strand %2d.%-3d (%c) with frac=%g -> %s\n', ...
+                  oc.perm(j), length(seq), seq(end), strand(k), strandpos(k), seqs{strand(k)}(strandpos(k)), p.pairfrac(endpos,k),concfmt(pconc));
+        end
+        newseqs{end+1}=[seq,rc(seqs{strand(k)}(1:strandpos(k)-1))];
+        newconc(end+1)=pconc;
+      
+        if newconc(end)>args.mindisplayconc
+          off1=0;
+          alignpos=length(seq)-1;
+          off2=strandpos(k)-1+length(seq)-length(seqs{strand(k)});
+          if off2<0
+            off1=-off2;
+            alignpos=alignpos-off2;
+            off2=0;
           end
+          fprintf(' %s5''-%s-3''\n',blanks(off1),seq);
+          fprintf(' %s   ',blanks(off1));
+          for m=1:length(seq)
+            if length(seq)-m > length(seqs{strand(k)})-strandpos(k)
+              fprintf(' ');
+            elseif k+length(seq)-m>0 && p.pairfrac(endpos-length(seq)+m,k+length(seq)-m)>p.pairfrac(endpos,k)/2
+              fprintf('|');
+            else
+              fprintf(' ');
+            end
+          end
+          fprintf('\n');
+          fprintf(' %s3''-%s-5''\n\n',blanks(off2),seqs{strand(k)}(end:-1:1));
         end
-        fprintf('\n');
-        fprintf(' %s%s\n\n',blanks(off2),seqs{strand}(end:-1:1));
       end
     end
   end
   
+  pcr.cycle(cycle)=c;
+
   dstrack(cycle)=dsconc;
   setfig('pcranneal-track');
   plot(dstrack*1e6,'o-');
@@ -171,13 +153,13 @@ for cycle=1:args.ncycles
   seqsprint(seqs(sel),abs(concentrations(sel)),'labels',args.labels);
   % Remove any below minconc
   if any(abs(concentrations)<args.minconc)
-    fprintf('Removing %d sequences with concentration < %g M\n', sum(abs(concentrations)<args.minconc),args.minconc);
+    fprintf('Keeping %d sequences with concentration >= %s\n', sum(abs(concentrations)>=args.minconc),concfmt(args.minconc));
     seqs=seqs(abs(concentrations)>=args.minconc);
     concentrations=concentrations(abs(concentrations)>=args.minconc);
   end
   [trackseqs,ib,ic]=union(trackseqs,seqs,'stable');
   for i=1:length(trackseqs)
-    sel=strcmp(seqs,trackseqs{i});
+    sel=find(strcmp(seqs,trackseqs{i}));
     if ~isempty(sel)
       trackconc(i,cycle+1)=concentrations(sel);
     end
@@ -186,9 +168,12 @@ for cycle=1:args.ncycles
   semilogy((1:size(trackconc,2))-1,trackconc'*1e12);
   xlabel('Cycle');
   ylabel('Concentration (pM)');
-  legend(trackseqs);
+  legend(trackseqs,'Location','EastOutside');
   pause(0.1);
 end
+pcr.trackseqs=trackseqs;
+pcr.trackconc=trackconc;
+pcr.dstrack=dstrack;
 
 function dcv=rxequation(t,c,kd,ka)
 global oldt prevt;
