@@ -184,10 +184,15 @@ for cycle=1:args.ncycles
     end
   end
   setfig('seqs');clf;
-  semilogy((1:size(trackconc,2))-1,trackconc'*1e12);
+  semilogy((1:size(trackconc,2))-1,trackconc');
   xlabel('Cycle');
-  ylabel('Concentration (pM)');
-  legend(trackseqs,'Location','EastOutside');
+  ylabel('Concentration (M)');
+  leg={};
+  for i=1:length(trackseqs)
+    leg{i}=sprintf('%s %s',trackseqs{i},concfmt(trackconc(i,end)));
+  end
+  
+  legend(leg,'Location','EastOutside');
   pause(0.1);
 end
 pcr.trackseqs=trackseqs;

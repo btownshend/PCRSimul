@@ -51,7 +51,7 @@ leg={};
 for i=1:length(sel)
   leg{i}=sprintf('C%d [%s]',sel(i),sprintf('%d ',c.ocomplex(sel(i)).perm));
 end
-legend(leg);
+legend(leg,'Location','EastOutside');
 
 
 function dC=dyneqn(t,c,A,D)
