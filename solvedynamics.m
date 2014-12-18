@@ -15,20 +15,23 @@ ncomplex=length(c.complex);
 A=zeros(ncomplex,ncomplex,ncomplex);  % A(i,j,k) is rate of association of i+j -> k; 
 D=zeros(ncomplex,ncomplex,ncomplex);  % D(i,j,k) is rate of disocciation of k -> i+j
 for i=1:ncomplex
+  cstr{i}=sprintf('%d,',c.ocomplex(i).perm);
+end
+
+for i=1:ncomplex
   for j=1:ncomplex
-    fusion=[c.ocomplex(i).perm;c.ocomplex(j).perm];
-    for k=1:ncomplex
-      if length(c.ocomplex(k).perm)==length(fusion) && all(c.ocomplex(k).perm==fusion)
-        % Have a match
-        if args.verbose
-          fprintf('[%s]+[%s]->[%s]\n', sprintf('%d ',c.ocomplex(i).perm), sprintf('%d ',c.ocomplex(j).perm), sprintf('%d ',c.ocomplex(k).perm));
-        end
-        A(i,j,k)=A(i,j,k)+args.ka/2;
-        % Dissociation rate to reach equilibrium
-        kd=args.ka*c.ocomplex(i).eqconc*c.ocomplex(j).eqconc/c.ocomplex(k).eqconc;
-        D(i,j,k)=D(i,j,k)+kd/2;
-        break;
+    fusion=[cstr{i},cstr{j}];
+    k=find(strcmp(fusion,cstr));
+    if ~isempty(k)
+      % Have a match
+      if args.verbose
+        fprintf('[%s]+[%s]->[%s]\n', sprintf('%d ',c.ocomplex(i).perm), sprintf('%d ',c.ocomplex(j).perm), sprintf('%d ',c.ocomplex(k).perm));
       end
+      A(i,j,k)=A(i,j,k)+args.ka/2;
+      % Dissociation rate to reach equilibrium
+      kd=args.ka*c.ocomplex(i).eqconc*c.ocomplex(j).eqconc/c.ocomplex(k).eqconc;
+      D(i,j,k)=D(i,j,k)+kd/2;
+      break;
     end
   end
 end
