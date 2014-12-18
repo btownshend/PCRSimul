@@ -153,10 +153,10 @@ for cycle=1:args.ncycles
   pcr.cycle(cycle)=c;
 
   dstrack(cycle)=dsconc;
-  setfig('pcranneal-track');
+  setfig('pcrsimul-track');
   plot(dstrack*1e6,'o-');
   xlabel('Cycle');
-  ylabel('Conc(dsDNA) µM');
+  ylabel('Conc(dsDNA) \mu M');
   pause(0.1);
   
   % Merge duplicates
