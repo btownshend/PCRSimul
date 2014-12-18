@@ -2,7 +2,7 @@
 % Args: c - structure returned by complexes()
 % Returns: d - same as c but with concentrations updated to dynamic values
 function d=solvedynamics(c,t,varargin)
-defaults=struct('temp',55,'ka',1e6,'mindisplayconc',1e-12)
+defaults=struct('temp',55,'ka',1e6,'mindisplayconc',1e-12,'verbose',false,'reltol',0.01,'abstol',1e-12)
 args=processargs(defaults,varargin);
 ncomplex=length(c.complex);
 % Setup up differential equation
@@ -20,7 +20,9 @@ for i=1:ncomplex
     for k=1:ncomplex
       if length(c.ocomplex(k).perm)==length(fusion) && all(c.ocomplex(k).perm==fusion)
         % Have a match
-        fprintf('[%s]+[%s]->[%s]\n', sprintf('%d ',c.ocomplex(i).perm), sprintf('%d ',c.ocomplex(j).perm), sprintf('%d ',c.ocomplex(k).perm));
+        if args.verbose
+          fprintf('[%s]+[%s]->[%s]\n', sprintf('%d ',c.ocomplex(i).perm), sprintf('%d ',c.ocomplex(j).perm), sprintf('%d ',c.ocomplex(k).perm));
+        end
         A(i,j,k)=A(i,j,k)+args.ka/2;
         % Dissociation rate to reach equilibrium
         kd=args.ka*c.ocomplex(i).eqconc*c.ocomplex(j).eqconc/c.ocomplex(k).eqconc;
@@ -33,7 +35,12 @@ end
 
 initconds=c.concentrations;   % First complexes are strands by themselves
 initconds(end+1:ncomplex)=0;
-options=odeset('Stats','on','RelTol',0.01,'AbsTol',1e-12,'NonNegative',1:length(initconds(:)),'NormControl','off'); % ,'OutputFcn',@odeplot);
+if args.verbose
+  statsval='on';
+else
+  statsval='off';
+end
+options=odeset('Stats',statsval,'RelTol',args.reltol,'AbsTol',args.abstol,'NonNegative',1:length(initconds(:)),'NormControl','off'); % ,'OutputFcn',@odeplot);
 [t,y]=ode23t(@(t,y) dyneqn(t,y,A,D),[0,t],initconds(:),options);
 d=c;
 d.time=t;
