@@ -25,6 +25,9 @@ fprintf('Running simulation at T=%.0fC, Anneal time=%.0f sec, ka=%.1g /M/s\n', a
 fprintf('Initial concentrations:\n');
 seqsprint(seqs,abs(concentrations),'labels',args.labels);
 dstrack=[];   % Track number of ds bonds
+trackseqs=seqs;
+trackconc(:,1)=abs(concentrations);
+
 for cycle=1:args.ncycles
   fprintf('\n******* Cycle %d ********\n',cycle);
   % Find all the complexes
@@ -47,11 +50,37 @@ for cycle=1:args.ncycles
   end
   kd(~isfinite(kd))=0;
   
+  ka=(kd>0)*args.ka;   % Same fixed ka for anything that can form
+  
   % Solve ODE
-  options=odeset('Stats','on');
-  [t,y]=ode45(@(t,y) rxequation(t,reshape(y,size(pairconcs)),kd,args.ka),[0,args.time],initconds,options);
-  keyboard
-    
+  endpts=cumsum(cellfun(@(z) length(z), seqs));
+  trackpts=zeros(size(pairconcs));
+  trackpts(endpts,end)=1;
+  track=find(trackpts(:));
+  fprintf('Tracking %s\n',sprintf('%d ',track));
+  for i=1:length(track)
+    fprintf('Seq%d 3''end @ %d: initial unpaired conc=%s, equilibrium fraction unpaired=%g, equilibrium conc=%s\n', i, endpts(i), concfmt(concentrations(i)),c.pairfrac(endpts(i),end),concfmt(pairconcs(track(i))));
+  end
+  % Set up sparse jacobian pattern
+  % Each entry of jpattern(i,j) is non-zero iff dy(i)/dt depends on y(j)
+  jpat=speye(length(initconds(:)));
+  jtmp=ones(1,length(initconds(:)));
+  for i=1:length(initconds(:))
+    dc1=rxequation(0,reshape(jtmp,size(pairconcs)),kd,ka);
+    jtmp(i)=0;
+    dc2=rxequation(0,reshape(jtmp,size(pairconcs)),kd,ka);
+    jtmp(i)=1;
+    jpat(i,dc1~=dc2)=1;
+  end
+  
+  options=odeset('Stats','on','RelTol',0.05,'AbsTol',1e-10,'NonNegative',1:length(initconds(:)),'NormControl','off','JPattern',jpat,'OutputFcn',@odeplot,'OutputSel',track);
+  tic
+  [t,y]=ode23s(@(t,y) rxequation(t,reshape(y,size(pairconcs)),kd,ka),[0,args.time],initconds(:),options);
+  toc
+  for i=1:length(track)
+    fprintf('Seq%d 3''end @ %d: final unpaired conc=%s\n', i, endpts(i), concfmt(y(end,track(i))));
+  end
+  kineticpairconcs=reshape(y(end,:),size(pairconcs));
   
   % Gather seq start positions
   start=1;
@@ -65,17 +94,14 @@ for cycle=1:args.ncycles
   % Initialize for this cycle
   endpos=0;
   newseqs={};newconc=[];
-  dsconc=0;
-  ssconc=0;
+
+  % Compute number of double stranded bonds
+  ssconc=sum(kineticpairconcs(:,end));
+  dsconc=sum(sum(kineticpairconcs(:,1:end-1)));
+  fprintf('Unpaired nucleotides: %s, paired: %s, total: %s\n', concfmt(ssconc), concfmt(dsconc), concfmt(ssconc+dsconc));
 
   % Check each 3' end
   for i=1:length(seqs)
-    % Compute number of double stranded bonds
-    unpaired=sum(c.pairfrac(endpos+(1:length(seqs{i})),end));
-    paired=sum(1-c.pairfrac(endpos+(1:length(seqs{i})),end));
-    ssconc=ssconc+abs(concentrations(i))*unpaired;
-    dsconc=dsconc+abs(concentrations(i))*paired;
-
     if concentrations(i)<0
       % Blocked 3' end
       newseqs{end+1}=seqs{i};
@@ -84,24 +110,23 @@ for cycle=1:args.ncycles
     end
 
     endpos=endpos+length(seqs{i});
-    pfrac=c.pairfrac(endpos,:);
-    sel=find(pfrac>0);
+    pc=kineticpairconcs(endpos,:);
+    sel=find(pc>0);
     unpaired=1;
     for j=1:length(sel)
       pos=sel(j);
       if pos==size(c.pairfrac,2)
         % unpaired
         newseqs{end+1}=seqs{i};
-        newconc(end+1)=concentrations(i)*unpaired;
+        newconc(end+1)=pc(pos);
+        fprintf('Strand %d.%d (%c) unannealed with frac=%g -> %s(eq),%s(kin)\n', i, length(seqs{i}), seqs{i}(end), c.pairfrac(endpos,pos),concfmt(pairconcs(endpos,pos)),concfmt(newconc(end)));
         continue;
       end
       strand=find(pos<startpos,1)-1;
       strandpos=pos-startpos(strand)+1;
-      assocfrac=(1-exp(-args.time*args.ka*max(concentrations([i,strand]))));
-      unpaired=unpaired-assocfrac*pfrac(pos);
       newseqs{end+1}=[seqs{i},rc(seqs{strand}(1:strandpos-1))];
-      newconc(end+1)=concentrations(i)*pfrac(pos)*assocfrac;
-      fprintf('Strand %d.%d (%c) anneals to strand %2d.%-3d (%c) with frac=%g*%g=%g -> %s\n', i, length(seqs{i}), seqs{i}(end), strand, strandpos, seqs{strand}(strandpos), pfrac(pos),assocfrac, pfrac(pos)*assocfrac, concfmt(newconc(end)));
+      newconc(end+1)=pc(pos);
+      fprintf('Strand %d.%d (%c) anneals to strand %2d.%-3d (%c) with frac=%g -> %s(eq),%s(kin)\n', i, length(seqs{i}), seqs{i}(end), strand, strandpos, seqs{strand}(strandpos), c.pairfrac(endpos,pos),concfmt(pairconcs(endpos,pos)),concfmt(newconc(end)));
       if newconc(end)>args.mindisplayconc
         off1=0;alignpos=length(seqs{i})-1;off2=strandpos-1+length(seqs{i})-length(seqs{strand});
         if off2<0
@@ -114,7 +139,7 @@ for cycle=1:args.ncycles
         for k=1:length(seqs{i})
           if length(seqs{i})-k > length(seqs{strand})-strandpos
             fprintf(' ');
-          elseif pos+length(seqs{i})-k>0 && c.pairfrac(endpos-length(seqs{i})+k,pos+length(seqs{i})-k)>pfrac(pos)/2
+          elseif pos+length(seqs{i})-k>0 && c.pairfrac(endpos-length(seqs{i})+k,pos+length(seqs{i})-k)>c.pairfrac(endpos,pos)/2
             fprintf('|');
           else
             fprintf(' ');
@@ -125,7 +150,6 @@ for cycle=1:args.ncycles
       end
     end
   end
-  fprintf('Unpaired nucleotides: %s, paired: %s\n', concfmt(ssconc), concfmt(dsconc));
   
   dstrack(cycle)=dsconc;
   setfig('pcranneal-track');
@@ -151,25 +175,40 @@ for cycle=1:args.ncycles
     seqs=seqs(abs(concentrations)>=args.minconc);
     concentrations=concentrations(abs(concentrations)>=args.minconc);
   end
+  [trackseqs,ib,ic]=union(trackseqs,seqs,'stable');
+  for i=1:length(trackseqs)
+    sel=strcmp(seqs,trackseqs{i});
+    if ~isempty(sel)
+      trackconc(i,cycle+1)=concentrations(sel);
+    end
+  end
+  setfig('seqs');clf;
+  semilogy((1:size(trackconc,2))-1,trackconc'*1e12);
+  xlabel('Cycle');
+  ylabel('Concentration (pM)');
+  legend(trackseqs);
+  pause(0.1);
 end
-
-keyboard
 
 function dcv=rxequation(t,c,kd,ka)
-fprintf('t=%f\n',t);
+global oldt prevt;
+if isempty(prevt)
+  prevt=t;
+end
 u=c(:,end);  % Unpaired concentrations
-c=c(:,1:end-1);
+p=c(:,1:end-1);
 % Pairs  dCij/dt = ka*Ui*Uj-kdCij
-dc=-kd.*c;
-for i=1:size(c,1)
-  for j=1:size(c,2)
-    dc(i,j)=dc(i,j)+ka*u(i)*u(j);
-  end
-end
+dc=-kd.*p+ka.*(u*u');
 % Unpaired to balance
-for i=1:length(u)
-  du(i)=-sum(dc(i,:));
-end
+du=-sum(dc);
 dc(:,end+1)=du;
 dcv=dc(:);
-
+if (isempty(oldt) || t-oldt>0.01 || t<oldt) && t>prevt
+  relchange=abs(dc./c)*(t-prevt);
+  maxrelchange=max(relchange(c>1e-12));
+  %  fprintf('t=%f, maxrelchange=%.2f%%, maxabschange=%s\n',t,maxrelchange*100,concfmt((t-prevt)*max(abs(dc(c>0)))));
+  oldt=t;
+  set(gca,'YScale','log');
+  %  keyboard
+end
+prevt=t;
