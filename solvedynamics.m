@@ -44,7 +44,7 @@ else
   statsval='off';
 end
 options=odeset('Stats',statsval,'RelTol',args.reltol,'AbsTol',args.abstol,'NonNegative',1:length(initconds(:)),'NormControl','off'); % ,'OutputFcn',@odeplot);
-[t,y]=ode23t(@(t,y) dyneqn(t,y,A,D),[0,t],initconds(:),options);
+[t,y]=ode23t(@(t,y) dyneqn(y,A,D),[0,t],initconds(:),options);
 d=c;
 d.time=t;
 d.cconc=y;
@@ -64,11 +64,12 @@ end
 legend(leg,'Location','EastOutside');
 
 
-function dC=dyneqn(t,c,A,D)
+function dC=dyneqn(c,A,D)
 dC=zeros(size(c));
 cc=c*c';
 for i=1:length(c)
-  dC(i)=sum(sum(cc.*A(:,:,i)))-sum(c(i)*c'*squeeze(A(i,:,:)))*2-sum(sum(D(:,:,i)))*c(i)+sum(squeeze(D(i,:,:))*c)*2;
+  %  d2=sum(sum(cc.*A(:,:,i)))-c(i)*sum(c'*squeeze(A(i,:,:)))*2-sum(sum(D(:,:,i)))*c(i)+sum(squeeze(D(i,:,:))*c)*2;
+  dC(i)=sum(sum(cc.*A(:,:,i)))-c(i)*dot(c,sum(A(i,:,:),3))*2-sum(sum(D(:,:,i)))*c(i)+dot(squeeze(sum(D(i,:,:),2)),c)*2;
 end
 %total=[ 1 1 2 2 2]*c;
 %fprintf(' C=[%s]\ndC=[%s]\n',sprintf('%.3g ',c),sprintf('%.3g ',dC));%,total);
