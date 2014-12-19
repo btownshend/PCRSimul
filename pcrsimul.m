@@ -19,7 +19,7 @@
 % Returns:
 %  pcr: struct containing setup, and ordered complexes in each cycle
 function pcr=pcrsimul(seqs,concentrations,varargin)
-defaults=struct('temp',55,'maxsize',2,'ncycles',1,'verbose',false,'minconc',1e-12,'cutoff',1e-6,'mindisplayconc',1e-12,'labels',containers.Map(),'time',30,'ka',1e6,'sodium',0.050,'mg',0.002);
+defaults=struct('temp',55,'maxsize',2,'ncycles',1,'verbose',false,'minconc',1e-12,'cutoff',1e-6,'mindisplayconc',1e-12,'labels',containers.Map(),'time',30,'ka',1e6,'sodium',0.050,'mg',0.002,'maxstrands',50);
 args=processargs(defaults,varargin);
 
 % Remove any blanks, make sequence upper case
@@ -52,6 +52,16 @@ pcr=defaults;	% Return value
 for cycle=1:args.ncycles
   tic;
   fprintf('\n******* Cycle %d ********\n',cycle);
+  if length(seqs)>args.maxstrands
+    % Reduce number of strands going into complexes
+    [sconc]=sort(concentrations,'descend');
+    sel=concentrations>=sconc(args.maxstrands);
+    sel=sel|args.labels.isKey(seqs);   % Keep any labelled ones also
+    fprintf('Keeping %d/%d strands with concentration >= %s\n', sum(sel), length(seqs), concfmt(sconc));
+    seqs=seqs(sel);
+    concentrations=concentrations(sel);
+  end
+
   % Find all the complexes
   c=complexes(seqs,'temp',args.temp,'maxsize',args.maxsize,'cutoff',args.cutoff,'verbose',args.verbose,'concentrations',abs(concentrations),'sodium',args.sodium,'mg',args.mg);
   fprintf('Found %d possible ordered complexes,',length(c.ocomplex));
@@ -67,10 +77,12 @@ for cycle=1:args.ncycles
       error('Unsupported: complex with %d components\n', length(c.ocomplex(i).perm));
     end
   end
-  % remove any complexes with maximum possible concentration < args.minconc
+  % remove any complexes with maximum possible concentration < args.minconc to speed up solvedynamics()
   c.allocomplex=c.ocomplex;
   c.ocomplex=c.ocomplex([c.ocomplex.maxconc]>=args.minconc);
   fprintf('reduced to %d with maxconc>=%s\n', length(c.ocomplex),concfmt(args.minconc));
+
+  % compute concentration after a given time window (instead of using equilibrium)
   c=solvedynamics(c,args.time,'temp',args.temp,'ka',args.ka,'verbose',args.verbose);
   
   % Initialize for this cycle
@@ -84,6 +96,7 @@ for cycle=1:args.ncycles
       continue;
     end
 
+    % Compute base pair probabilities for this complex
     p=pairs(seqs,oc.perm,'temp',args.temp,'cutoff',args.cutoff,'verbose',args.verbose,'sodium',args.sodium,'mg',args.mg);
     c.ocomplex(i).pairs=p;	% Keep for reference
     
