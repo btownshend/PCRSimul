@@ -124,8 +124,8 @@ for cycle=1:args.ncycles
       newseqs{end+1}=seq;
       newconc(end+1)=p.pairfrac(endpos,end)*oc.conc;
       if newconc(end)>=args.mindisplayconc
-        fprintf('Strand %d.%d (%c) unpaired with frac=%g -> %s\n', ...
-                oc.perm(j), length(seq), seq(end), p.pairfrac(endpos,end),concfmt(newconc(end)));
+        fprintf('Strand %d.%d (%c) unpaired with frac=%g -> %s (#%d)\n', ...
+                oc.perm(j), length(seq), seq(end), p.pairfrac(endpos,end),concfmt(newconc(end)),length(newconc));
       end
       
       % Go through all the possible pairings
@@ -134,12 +134,12 @@ for cycle=1:args.ncycles
           continue;
         end
         pconc=p.pairfrac(endpos,k)*oc.conc;   % Concentration of this pair
-        if pconc>=args.mindisplayconc
-          fprintf('Strand %d.%d (%c) anneals to strand %2d.%-3d (%c) with frac=%g -> %s\n', ...
-                  oc.perm(j), length(seq), seq(end), strand(k), strandpos(k), seqs{strand(k)}(strandpos(k)), p.pairfrac(endpos,k),concfmt(pconc));
-        end
         newseqs{end+1}=[seq,rc(seqs{strand(k)}(1:strandpos(k)-1))];
         newconc(end+1)=pconc;
+        if pconc>=args.mindisplayconc
+          fprintf('Strand %d.%d (%c) anneals to strand %2d.%-3d (%c) with frac=%g -> %s (#%d)\n', ...
+                  oc.perm(j), length(seq), seq(end), strand(k), strandpos(k), seqs{strand(k)}(strandpos(k)), p.pairfrac(endpos,k),concfmt(pconc),length(newconc));
+        end
       
         if newconc(end)>args.mindisplayconc
           off1=0;
@@ -178,11 +178,16 @@ for cycle=1:args.ncycles
   pause(0.1);
   
   % Merge duplicates
+  %  fprintf('Before merging:\n');
+  %  seqsprint(newseqs,abs(newconc),'labels',args.labels);
+  
   [seqs,ia,ic]=unique(newseqs,'sorted');
   concentrations=zeros(1,length(seqs));
   for i=1:length(ic)
-    assert(concentrations(ic(i))>=0);   % Make sure we con't collide with blocked ones
-    concentrations(ic(i))=concentrations(ic(i))+newconc(i);
+    if newconc(i)<0
+      fprintf('Warning: newconc(%d)<0 (%g)\n', i, newconc(i));
+    end
+    concentrations(ic(i))=concentrations(ic(i))+max(0,newconc(i));
   end
   [concentrations,ord]=sort(concentrations,'descend');
   seqs=seqs(ord);
