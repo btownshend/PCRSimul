@@ -25,7 +25,9 @@ if args.verbose
   fprintf('%s',r);
 end
 
-c=struct('seqs',{seqs},'temp',args.temp,'sodium',args.sodium,'mg',args.mg,'perm',ocperm);
+c=defaults;
+c.seqs=seqs;
+c.perm=ocperm;
 
 % Parse .ppairs file
 fd=fopen([tmpfile,'.ppairs'],'r');

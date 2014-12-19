@@ -29,7 +29,8 @@ if args.verbose
   fprintf('%s',r);
 end
 
-c=struct('seqs',{seqs},'maxsize',args.maxsize,'sodium',args.sodium,'mg',args.mg,'temp',args.temp);
+c=defaults;
+c.seqs=seqs;
 
 % Load .cx file and store result in c.strands, c.dG
 % Contains the composition and free energy of each complex. The first column is an integer complex identifier, 
