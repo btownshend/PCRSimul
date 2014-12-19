@@ -35,6 +35,11 @@ for i=1:ncomplex
     end
   end
 end
+Dsum=squeeze(sum(sum(D,1)));
+As={};
+for k=1:size(A,3)
+  As{k}=sparse(A(:,:,k));
+end
 
 initconds=c.concentrations;   % First complexes are strands by themselves
 initconds(end+1:ncomplex)=0;
@@ -43,8 +48,20 @@ if args.verbose
 else
   statsval='off';
 end
-options=odeset('Stats',statsval,'RelTol',args.reltol,'AbsTol',args.abstol,'NonNegative',1:length(initconds(:)),'NormControl','off'); % ,'OutputFcn',@odeplot);
-[t,y]=ode23t(@(t,y) dyneqn(y,A,D),[0,t],initconds(:),options);
+if false
+  jpat=speye(length(initconds));
+  jtmp=ones(1,length(initconds));
+  dc1=dyneqn(jtmp,A,D);
+  for i=1:length(initconds)
+    jtmp(i)=0;
+    dc2=dyneqn(jtmp,A,D);
+    jtmp(i)=1;
+    jpat(i,dc1~=dc2)=1;
+  end
+end
+
+options=odeset('Stats',statsval,'RelTol',args.reltol,'AbsTol',args.abstol,'NonNegative',1:length(initconds),'NormControl','off'); % ,'JPattern',jpat); % ,'OutputFcn',@odeplot);
+[t,y]=ode15s(@(t,y) dyneqn(y,A,D,Dsum),[0,t],initconds,options);
 d=c;
 d.time=t;
 d.cconc=y;
@@ -64,13 +81,26 @@ end
 legend(leg,'Location','EastOutside');
 
 
-function dC=dyneqn(c,A,D)
+function dC=dyneqn(c,A,D,Dsum)
 dC=zeros(size(c));
 cc=c*c';
 for i=1:length(c)
   %  d2=sum(sum(cc.*A(:,:,i)))-c(i)*sum(c'*squeeze(A(i,:,:)))*2-sum(sum(D(:,:,i)))*c(i)+sum(squeeze(D(i,:,:))*c)*2;
-  dC(i)=sum(sum(cc.*A(:,:,i)))-c(i)*dot(c,sum(A(i,:,:),3))*2-sum(sum(D(:,:,i)))*c(i)+dot(squeeze(sum(D(i,:,:),2)),c)*2;
+  %  d2=sum(sum(cc.*A(:,:,i)))-c(i)*dot(c,sum(A(i,:,:),3))*2-sum(sum(D(:,:,i)))*c(i)+dot(squeeze(sum(D(i,:,:),2)),c)*2;
+  %  d2=sum(sum(cc.*A(:,:,i)))-c(i)*sA3c(i)*2-sum(sum(D(:,:,i)))*c(i)+sD2c(i)*2;
+  %  dC(i)=sum(sum(cc.*A(:,:,i)));   % Production from component parts
+  dC(i)=c'*(A(:,:,i)*c);   % Production from component parts
+  keyboard
+  %    if abs(d2-dC(i))>1e-15
+  %      keyboard
+  %    end
 end
+sA3c=sum(A,3)*c;
+sD2c=squeeze(sum(D,2))*c;
+dC=dC ...
+   -c.*sA3c*2 ...    % Consumed in forming new complex
+   -Dsum.*c ...	     % Degradation of complex to components
+   +sD2c*2;	     % Formation due to breakdown of a complex
 %total=[ 1 1 2 2 2]*c;
 %fprintf(' C=[%s]\ndC=[%s]\n',sprintf('%.3g ',c),sprintf('%.3g ',dC));%,total);
                                                                               %if abs(total-4.1e-7)>1e-8
