@@ -50,6 +50,7 @@ trackconc(:,1)=abs(concentrations);
 pcr=defaults;	% Return value
 
 for cycle=1:args.ncycles
+  tic;
   fprintf('\n******* Cycle %d ********\n',cycle);
   % Find all the complexes
   c=complexes(seqs,'temp',args.temp,'maxsize',args.maxsize,'cutoff',args.cutoff,'verbose',args.verbose,'concentrations',abs(concentrations),'sodium',args.sodium,'mg',args.mg);
@@ -211,6 +212,7 @@ for cycle=1:args.ncycles
   
   legend(leg,'Location','EastOutside');
   pause(0.1);
+  fprintf('Cycle took %.1f seconds\n', toc);
 end
 pcr.trackseqs=trackseqs;
 pcr.trackconc=trackconc;
