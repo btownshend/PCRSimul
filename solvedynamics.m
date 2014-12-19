@@ -31,7 +31,6 @@ for i=1:ncomplex
       % Dissociation rate to reach equilibrium
       kd=args.ka*c.ocomplex(i).eqconc*c.ocomplex(j).eqconc/c.ocomplex(k).eqconc;
       D(i,j,k)=D(i,j,k)+kd/2;
-      break;
     end
   end
 end
