@@ -2,9 +2,10 @@
 % Args: c - structure returned by complexes()
 % Returns: d - same as c but with concentrations updated to dynamic values
 function d=solvedynamics(c,t,varargin)
-defaults=struct('temp',55,'ka',1e6,'mindisplayconc',1e-12,'verbose',false,'reltol',0.01,'abstol',1e-12)
+defaults=struct('temp',55,'ka',1e6,'mindisplayconc',1e-12,'verbose',false,'reltol',0.01,'abstol',1e-12);
 args=processargs(defaults,varargin);
 ncomplex=length(c.ocomplex);
+fprintf('Solving dynamics for %d complexes over %f seconds\n', ncomplex, t);
 % Setup up differential equation
 % C(t)~ concentration of each complex at time t
 % dC(k)/dt=sum(ka*C(i)*C(j)) - kd*C(m)
