@@ -228,15 +228,24 @@ for cycle=1:args.ncycles
     end
   end
   setfig('seqs');clf;
-  semilogy((1:size(trackconc,2))-1,trackconc');
+  peakconc=max(trackconc,[],2);   % Peak of each sequence
+  maxplot=20;   % Maximum number to plot
+  minplotconc=0;
+  if length(peakconc)>maxplot
+    minplotconc=prctile(peakconc,(1-maxplot/length(peakconc))*100);
+  end
+  sel=peakconc>=minplotconc;
+  semilogy((1:size(trackconc,2))-1,trackconc(sel,:)');
   xlabel('Cycle');
   ylabel('Concentration (M)');
   leg={};
   for i=1:length(trackseqs)
-    leg{i}=sprintf('%s %s',trackseqs{i},concfmt(trackconc(i,end)));
+    if sel(i)
+      leg{end+1}=sprintf('%s %s',trackseqs{i},concfmt(trackconc(i,end)));
+    end
   end
   
-  legend(leg,'Location','EastOutside');
+  legend(leg,'Location','SouthOutside');
   pause(0.1);
   fprintf('Cycle took %.1f seconds\n', toc);
 end
