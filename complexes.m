@@ -1,6 +1,6 @@
 % Find complexes and optionally concentrations from mix of oligos
 function c=complexes(seqs,varargin)
-defaults=struct('maxsize',2,'temp',55,'cutoff',.001,'concentrations',[],'verbose',false,'ordered',true,'sodium',1.0,'mg',0.0);
+defaults=struct('maxsize',2,'temp',55,'cutoff',.001,'concentrations',[],'verbose',false,'ordered',true,'sodium',1.0,'mg',0.0,'pairs',false);
 args=processargs(defaults,varargin);
 
 nuprefix='export NUPACKHOME=/Users/bst/Dropbox/SynBio/src/nupack3.0.4; $NUPACKHOME/bin';
@@ -17,7 +17,13 @@ if args.ordered
 else
   orderedopt='';
 end
-cmd=sprintf('%s/complexes -sodium %f -mg %f -T %f -material dna -pairs -cutoff %f %s %s',nuprefix,args.sodium, args.mg,args.temp,args.cutoff, orderedopt, tmpfile);
+if args.pairs
+  pairsopt='-pairs';
+else
+  pairsopt='';
+end
+
+cmd=sprintf('%s/complexes -sodium %f -mg %f -T %f -material dna %s -cutoff %f %s %s',nuprefix,args.sodium, args.mg,args.temp,pairsopt,args.cutoff, orderedopt, tmpfile);
 if args.verbose
   fprintf('cmd=%s\n',cmd);
 end
@@ -125,7 +131,7 @@ if ~isempty(args.concentrations)
   end
   fclose(fd);
   c.concentrations=args.concentrations;
-  cmd=sprintf('%s/concentrations %s -sort 0 -cutoff %f -pairs %s',nuprefix, orderedopt, args.cutoff, tmpfile);
+  cmd=sprintf('%s/concentrations %s -sort 0 -cutoff %f %s %s',nuprefix, orderedopt, args.cutoff, pairsopt, tmpfile);
   if args.verbose
     fprintf('cmd=%s\n',cmd);
   end
@@ -176,25 +182,27 @@ if ~isempty(args.concentrations)
     end
   end
   
-  % Parse .fpairs file
-  fd=fopen([tmpfile,'.fpairs'],'r');
-  c.npairs=[];
-  while true
-    line=fgetl(fd);
-    if ~ischar(line)
-      break;
+  if args.pairs
+    % Parse .fpairs file
+    fd=fopen([tmpfile,'.fpairs'],'r');
+    c.npairs=[];
+    while true
+      line=fgetl(fd);
+      if ~ischar(line)
+        break;
+      end
+      if line(1)=='%'
+        continue;
+      end
+      if isempty(c.npairs)
+        c.npairs=sscanf(line,'%d ');
+      else
+        vals=sscanf(line,'%d %d %g');
+        c.pairfrac(vals(1),vals(2))=vals(3);
+      end
     end
-    if line(1)=='%'
-      continue;
-    end
-    if isempty(c.npairs)
-      c.npairs=sscanf(line,'%d ');
-    else
-      vals=sscanf(line,'%d %d %g');
-      c.pairfrac(vals(1),vals(2))=vals(3);
-    end
+    fclose(fd);
   end
-  fclose(fd);
 end
   
 eval(['!rm ',tmpfile,'.*']);
