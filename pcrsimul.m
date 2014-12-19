@@ -28,10 +28,16 @@ for i=1:length(seqs)
 end
 
 % Add common labels
-args.labels('CTTTTCCGTATATCTCGCCAG')='A_Primer';
-args.labels('CGGAAATTTCAAAGGTGCTTC')='B_Primer';
-args.labels('AATTTAATACGACTCACTATAGGGAAACAAACAAAGCTGTCACCGGA')='T7_W_Primer';
-args.labels('TTTTTATTTTTCTTTTTGCTGTTTCGTCC')='X_Primer';
+args.labels('AATTTAATACGACTCACTATAGGG')='T7';
+args.labels('CTTTTCCGTATATCTCGCCAG')='A';
+args.labels('CGGAAATTTCAAAGGTGCTTC')='B';
+args.labels('AAACAAACAAA')='W';
+args.labels('AAAAAGAAAAATAAAAA')='X';
+args.labels('GCTGTCACCGGA')='s31';
+args.labels('TCCGGTCTGATGAGTCC')='s12';
+args.labels('GGACGAAACAGC')='s23';
+
+args.labels(rc('TTTTTATTTTTCTTTTTGCTGTTTCGTCC'))='X_Primer';
 
 % Add RC of all labels
 k=args.labels.keys();
@@ -65,6 +71,8 @@ for cycle=1:args.ncycles
   % Find all the complexes
   c=complexes(seqs,'temp',args.temp,'maxsize',args.maxsize,'cutoff',args.cutoff,'verbose',args.verbose,'concentrations',abs(concentrations),'sodium',args.sodium,'mg',args.mg);
   fprintf('Found %d possible ordered complexes,',length(c.ocomplex));
+
+  % Estimate upper bound on possible concentration of each complex over time window
   for i=1:length(c.ocomplex)
     if length(c.ocomplex(i).perm)==1
       % Max is the initial individual component concentration
