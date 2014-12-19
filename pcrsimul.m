@@ -54,10 +54,22 @@ for cycle=1:args.ncycles
   % Find all the complexes
   c=complexes(seqs,'temp',args.temp,'maxsize',args.maxsize,'cutoff',args.cutoff,'verbose',args.verbose,'concentrations',abs(concentrations),'sodium',args.sodium,'mg',args.mg);
   fprintf('Found %d possible ordered complexes,',length(c.ocomplex));
-  % remove any complexes with concentration < args.minconc
-  c.complex=c.complex([c.complex.eqconc]>=args.minconc);
-  c.ocomplex=c.ocomplex([c.ocomplex.eqconc]>=args.minconc);
-  fprintf('reduced to %d with conc>=%s\n', length(c.ocomplex),concfmt(args.minconc));
+  for i=1:length(c.ocomplex)
+    if length(c.ocomplex(i).perm)==1
+      % Max is the initial individual component concentration
+      c.ocomplex(i).maxconc=abs(concentrations(c.ocomplex(i).perm));
+    elseif length(c.ocomplex(i).perm)==2
+      % Compute maximum possible concentration of the complexes in isolation with an irreversible reaction
+      [t,y]=ode45(@(t,y) [-args.ka*y(1)*y(2); -args.ka*y(1)*y(2); args.ka*y(1)*y(2)],[0,args.time],[abs(concentrations(c.ocomplex(i).perm)),0],odeset('AbsTol',args.minconc/10));
+      c.ocomplex(i).maxconc=y(end,3);
+    else
+      error('Unsupported: complex with %d components\n', length(c.ocomplex(i).perm));
+    end
+  end
+  % remove any complexes with maximum possible concentration < args.minconc
+  c.allocomplex=c.ocomplex;
+  c.ocomplex=c.ocomplex([c.ocomplex.maxconc]>=args.minconc);
+  fprintf('reduced to %d with maxconc>=%s\n', length(c.ocomplex),concfmt(args.minconc));
   c=solvedynamics(c,args.time,'temp',args.temp,'ka',args.ka,'verbose',args.verbose);
   
   % Initialize for this cycle
