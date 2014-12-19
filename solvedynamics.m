@@ -4,7 +4,7 @@
 function d=solvedynamics(c,t,varargin)
 defaults=struct('temp',55,'ka',1e6,'mindisplayconc',1e-12,'verbose',false,'reltol',0.01,'abstol',1e-12)
 args=processargs(defaults,varargin);
-ncomplex=length(c.complex);
+ncomplex=length(c.ocomplex);
 % Setup up differential equation
 % C(t)~ concentration of each complex at time t
 % dC(k)/dt=sum(ka*C(i)*C(j)) - kd*C(m)
