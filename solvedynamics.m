@@ -36,10 +36,14 @@ for i=1:ncomplex
   end
 end
 Dsum=squeeze(sum(sum(D,1)));
+sD2=squeeze(sum(D,2));
 As={};
+sA3=zeros(size(A,1),size(A,2));
 for k=1:size(A,3)
   As{k}=sparse(A(:,:,k));
+  sA3=sA3+As{k};
 end
+clear A;
 
 initconds=c.concentrations;   % First complexes are strands by themselves
 initconds(end+1:ncomplex)=0;
@@ -51,17 +55,17 @@ end
 if false
   jpat=speye(length(initconds));
   jtmp=ones(1,length(initconds));
-  dc1=dyneqn(jtmp,A,D);
+  dc1=dyneqn(jtmp,As,D);
   for i=1:length(initconds)
     jtmp(i)=0;
-    dc2=dyneqn(jtmp,A,D);
+    dc2=dyneqn(jtmp,As,D);
     jtmp(i)=1;
     jpat(i,dc1~=dc2)=1;
   end
 end
 
 options=odeset('Stats',statsval,'RelTol',args.reltol,'AbsTol',args.abstol,'NonNegative',1:length(initconds),'NormControl','off'); % ,'JPattern',jpat); % ,'OutputFcn',@odeplot);
-[t,y]=ode15s(@(t,y) dyneqn(y,A,D,Dsum),[0,t],initconds,options);
+[t,y]=ode15s(@(t,y) dyneqn(y,As,sA3,D,sD2,Dsum),[0,t],initconds,options);
 d=c;
 d.time=t;
 d.cconc=y;
@@ -81,7 +85,7 @@ end
 legend(leg,'Location','EastOutside');
 
 
-function dC=dyneqn(c,A,D,Dsum)
+function dC=dyneqn(c,As,sA3,D,sD2,Dsum)
 dC=zeros(size(c));
 cc=c*c';
 for i=1:length(c)
@@ -89,14 +93,13 @@ for i=1:length(c)
   %  d2=sum(sum(cc.*A(:,:,i)))-c(i)*dot(c,sum(A(i,:,:),3))*2-sum(sum(D(:,:,i)))*c(i)+dot(squeeze(sum(D(i,:,:),2)),c)*2;
   %  d2=sum(sum(cc.*A(:,:,i)))-c(i)*sA3c(i)*2-sum(sum(D(:,:,i)))*c(i)+sD2c(i)*2;
   %  dC(i)=sum(sum(cc.*A(:,:,i)));   % Production from component parts
-  dC(i)=c'*(A(:,:,i)*c);   % Production from component parts
-  keyboard
+  dC(i)=c'*(As{i}*c);   % Production from component parts
   %    if abs(d2-dC(i))>1e-15
   %      keyboard
   %    end
 end
-sA3c=sum(A,3)*c;
-sD2c=squeeze(sum(D,2))*c;
+sA3c=sA3*c;
+sD2c=sD2*c;
 dC=dC ...
    -c.*sA3c*2 ...    % Consumed in forming new complex
    -Dsum.*c ...	     % Degradation of complex to components
