@@ -53,7 +53,12 @@ for cycle=1:args.ncycles
   fprintf('\n******* Cycle %d ********\n',cycle);
   % Find all the complexes
   c=complexes(seqs,'temp',args.temp,'maxsize',args.maxsize,'cutoff',args.cutoff,'verbose',args.verbose,'concentrations',abs(concentrations),'sodium',args.sodium,'mg',args.mg);
-  c=solvedynamics(c,args.time,'temp',args.temp,'ka',args.ka);
+  fprintf('Found %d possible ordered complexes,',length(c.ocomplex));
+  % remove any complexes with concentration < args.minconc
+  c.complex=c.complex([c.complex.eqconc]>=args.minconc);
+  c.ocomplex=c.ocomplex([c.ocomplex.eqconc]>=args.minconc);
+  fprintf('reduced to %d with conc>=%s\n', length(c.ocomplex),concfmt(args.minconc));
+  c=solvedynamics(c,args.time,'temp',args.temp,'ka',args.ka,'verbose',args.verbose);
   
   % Initialize for this cycle
   newseqs={};newconc=[];
