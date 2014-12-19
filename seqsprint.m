@@ -43,7 +43,18 @@ function s=label(seq,l,depth)
     end
   end
 
-  % No matches
-  s='*';
+  % No matches - trim by 1 on each end and recheck
+  if length(seq)<6
+    s='*';
+    return;
+  end
+
+  s=label(seq(2:end-1),l,depth+1);
+  if s(1)~='*'
+    s=['*',s];
+  end
+  if s(end)~='*'
+    s=[s,'*'];
+  end
 end
 
