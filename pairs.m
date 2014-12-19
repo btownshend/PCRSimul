@@ -31,30 +31,21 @@ c.perm=ocperm;
 
 % Parse .ppairs file
 fd=fopen([tmpfile,'.ppairs'],'r');
-t=textscan(fd,'%[^\n]');
-fclose(fd);
-lines=t{1};
-c.npairs=[];
-i=1;
-while i<=length(lines)
-  line=lines{i};
-  i=i+1;
-  if length(line)==0 || line(1)=='%'
+while true
+  line=fgetl(fd);
+  if ~ischar(line)
+    error('EOF on input file before reading npairs');
+  end
+  if isempty(line) || line(1)=='%'
     continue;
   end
   c.npairs=sscanf(line,'%d ');
   break;
 end
 c.pairfrac=zeros(c.npairs,c.npairs+1);
-while i<=length(lines)
-  line=lines{i};
-  i=i+1;
-  if length(line)==0 || line(1)=='%'
-    continue;
-  end
-  vals=sscanf(line,'%d %d %g');
-  c.pairfrac(vals(1),vals(2))=vals(3);
-end
+t=textscan(fd,'%d %d %f');
+c.pairfrac(sub2ind(size(c.pairfrac),t{1},t{2}))=t{3};
+fclose(fd);
 % Reflect in diagonal
 c.pairfrac(:,1:end-1)=c.pairfrac(:,1:end-1)+c.pairfrac(:,1:end-1)';
 eval(['!rm ',tmpfile,'.*']);
