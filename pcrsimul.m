@@ -19,43 +19,66 @@
 % Returns:
 %  pcr: struct containing setup, and ordered complexes in each cycle
 function pcr=pcrsimul(seqs,concentrations,varargin)
-defaults=struct('temp',55,'maxsize',2,'ncycles',1,'verbose',false,'minconc',1e-12,'cutoff',1e-6,'mindisplayconc',1e-12,'labels',containers.Map(),'time',30,'ka',1e6,'sodium',0.050,'mg',0.002,'maxstrands',50);
-args=processargs(defaults,varargin);
+  defaults=struct('temp',55,'maxsize',2,'ncycles',1,'verbose',false,'minconc',1e-12,'cutoff',1e-6,'mindisplayconc',1e-12,'labels',containers.Map(),'time',30,'ka',1e6,'sodium',0.050,'mg',0.002,'maxstrands',50);
+  args=processargs(defaults,varargin);
 
-% Remove any blanks, make sequence upper case
-for i=1:length(seqs)
-  seqs{i}=upper(strrep(seqs{i},' ',''));
+  % Remove any blanks, make sequence upper case
+  for i=1:length(seqs)
+    seqs{i}=upper(strrep(seqs{i},' ',''));
+  end
+
+  % Add common labels
+  args.labels('AATTTAATACGACTCACTATAGGG')='T7';
+  args.labels('CTTTTCCGTATATCTCGCCAG')='A';
+  args.labels('CGGAAATTTCAAAGGTGCTTC')='B';
+  args.labels('AAACAAACAAA')='W';
+  args.labels('AAAAAGAAAAATAAAAA')='X';
+  args.labels('GCTGTCACCGGA')='s31';
+  args.labels('TCCGGTCTGATGAGTCC')='s12';
+  args.labels('GGACGAAACAGC')='s23';
+
+  % Add RC of all labels
+  k=args.labels.keys();
+  for i=1:length(k)
+    args.labels(rc(k{i}))=[args.labels(k{i}),'-RC'];
+  end
+
+  fprintf('Running simulation at T=%.0fC, Anneal time=%.0f sec, ka=%.1g /M/s\n', args.temp, args.time, args.ka);
+  fprintf('Initial concentrations:\n');
+  seqsprint(seqs,abs(concentrations),'labels',args.labels);
+
+  pcr=args;	% Return value
+  pcr.trackseqs=seqs;
+  pcr.trackconc(:,1)=abs(concentrations);
+  pcr.dstrack=[];	% Track number of ds bonds
+  
+  for cycle=1:args.ncycles
+    tic;
+    fprintf('\n******* Cycle %d ********\n',cycle);
+    [seqs,concentrations,c,ds]=pcrcycle(pcr,seqs,concentrations);
+    pcr.dstrack(cycle)=ds;
+    pcr.cycle(cycle)=c;
+    fprintf('Cycle took %.1f seconds\n', toc);
+
+    [pcr.trackseqs,ib,ic]=union(pcr.trackseqs,seqs,'stable');
+    for i=1:length(pcr.trackseqs)
+      sel=find(strcmp(seqs,pcr.trackseqs{i}));
+      if ~isempty(sel)
+        pcr.trackconc(i,cycle+1)=concentrations(sel);
+      end
+    end
+
+    plotseqs(pcr);
+  end
+
+  setfig('pcrsimul-dstrack');
+  plot(pcr.dstrack*1e6,'o-');
+  xlabel('Cycle');
+  ylabel('Conc(dsDNA) \mu M');
 end
 
-% Add common labels
-args.labels('AATTTAATACGACTCACTATAGGG')='T7';
-args.labels('CTTTTCCGTATATCTCGCCAG')='A';
-args.labels('CGGAAATTTCAAAGGTGCTTC')='B';
-args.labels('AAACAAACAAA')='W';
-args.labels('AAAAAGAAAAATAAAAA')='X';
-args.labels('GCTGTCACCGGA')='s31';
-args.labels('TCCGGTCTGATGAGTCC')='s12';
-args.labels('GGACGAAACAGC')='s23';
 
-% Add RC of all labels
-k=args.labels.keys();
-for i=1:length(k)
-  args.labels(rc(k{i}))=[args.labels(k{i}),'-RC'];
-end
-
-fprintf('Running simulation at T=%.0fC, Anneal time=%.0f sec, ka=%.1g /M/s\n', args.temp, args.time, args.ka);
-fprintf('Initial concentrations:\n');
-seqsprint(seqs,abs(concentrations),'labels',args.labels);
-
-dstrack=[];   % Track number of ds bonds
-trackseqs=seqs;
-trackconc(:,1)=abs(concentrations);
-
-pcr=defaults;	% Return value
-
-for cycle=1:args.ncycles
-  tic;
-  fprintf('\n******* Cycle %d ********\n',cycle);
+function [seqs,concentrations,c,dsconc]=pcrcycle(args,seqs,concentrations)
   if length(seqs)>args.maxstrands
     % Reduce number of strands going into complexes
     [sconc]=sort(concentrations,'descend');
@@ -67,27 +90,30 @@ for cycle=1:args.ncycles
   end
 
   % Find all the complexes
+  fprintf('Running complexes on %d strands...',length(seqs));
   c=complexes(seqs,'temp',args.temp,'maxsize',args.maxsize,'cutoff',args.cutoff,'verbose',args.verbose,'concentrations',abs(concentrations),'sodium',args.sodium,'mg',args.mg);
+  fprintf('done\n');
+  
   fprintf('Found %d possible ordered complexes,',length(c.ocomplex));
 
   if false
-  % Estimate upper bound on possible concentration of each complex over time window
-  for i=1:length(c.ocomplex)
-    if length(c.ocomplex(i).perm)==1
-      % Max is the initial individual component concentration
-      c.ocomplex(i).maxconc=abs(concentrations(c.ocomplex(i).perm));
-    elseif length(c.ocomplex(i).perm)==2
-      % Compute maximum possible concentration of the complexes in isolation with an irreversible reaction
-      [t,y]=ode45(@(t,y) [-args.ka*y(1)*y(2); -args.ka*y(1)*y(2); args.ka*y(1)*y(2)],[0,args.time],[abs(concentrations(c.ocomplex(i).perm)),0],odeset('AbsTol',args.minconc/10));
-      c.ocomplex(i).maxconc=y(end,3);
-    else
-      error('Unsupported: complex with %d components\n', length(c.ocomplex(i).perm));
+    % Estimate upper bound on possible concentration of each complex over time window
+    for i=1:length(c.ocomplex)
+      if length(c.ocomplex(i).perm)==1
+        % Max is the initial individual component concentration
+        c.ocomplex(i).maxconc=abs(concentrations(c.ocomplex(i).perm));
+      elseif length(c.ocomplex(i).perm)==2
+        % Compute maximum possible concentration of the complexes in isolation with an irreversible reaction
+        [t,y]=ode45(@(t,y) [-args.ka*y(1)*y(2); -args.ka*y(1)*y(2); args.ka*y(1)*y(2)],[0,args.time],[abs(concentrations(c.ocomplex(i).perm)),0],odeset('AbsTol',args.minconc/10));
+        c.ocomplex(i).maxconc=y(end,3);
+      else
+        error('Unsupported: complex with %d components\n', length(c.ocomplex(i).perm));
+      end
     end
-  end
-  % remove any complexes with maximum possible concentration < args.minconc to speed up solvedynamics()
-  c.allocomplex=c.ocomplex;
-  c.ocomplex=c.ocomplex([c.ocomplex.maxconc]>=args.minconc);
-  fprintf('reduced to %d with maxconc>=%s\n', length(c.ocomplex),concfmt(args.minconc));
+    % remove any complexes with maximum possible concentration < args.minconc to speed up solvedynamics()
+    c.allocomplex=c.ocomplex;
+    c.ocomplex=c.ocomplex([c.ocomplex.maxconc]>=args.minconc);
+    fprintf('reduced to %d with maxconc>=%s\n', length(c.ocomplex),concfmt(args.minconc));
   end
 
   % compute concentration after a given time window (instead of using equilibrium)
@@ -126,7 +152,7 @@ for cycle=1:args.ncycles
       strandpos((1:length(seq))+endpos)=1:length(seq);
       endpos=endpos+length(seq);
     end
-      
+    
     % Check each 3' end
     endpos=0;
     for j=1:length(oc.perm)
@@ -161,7 +187,7 @@ for cycle=1:args.ncycles
           fprintf('Strand %d.%d (%c) anneals to strand %2d.%-3d (%c) with frac=%g -> %s (#%d)\n', ...
                   oc.perm(j), length(seq), seq(end), strand(k), strandpos(k), seqs{strand(k)}(strandpos(k)), p.pairfrac(endpos,k),concfmt(pconc),length(newconc));
         end
-      
+        
         if newconc(end)>args.mindisplayconc
           off1=0;
           alignpos=length(seq)-1;
@@ -189,15 +215,6 @@ for cycle=1:args.ncycles
     end
   end
   
-  pcr.cycle(cycle)=c;
-
-  dstrack(cycle)=dsconc;
-  setfig('pcrsimul-track');
-  plot(dstrack*1e6,'o-');
-  xlabel('Cycle');
-  ylabel('Conc(dsDNA) \mu M');
-  pause(0.1);
-  
   % Merge duplicates
   %  fprintf('Before merging:\n');
   %  seqsprint(newseqs,abs(newconc),'labels',args.labels);
@@ -220,58 +237,26 @@ for cycle=1:args.ncycles
     seqs=seqs(abs(concentrations)>=args.minconc);
     concentrations=concentrations(abs(concentrations)>=args.minconc);
   end
-  [trackseqs,ib,ic]=union(trackseqs,seqs,'stable');
-  for i=1:length(trackseqs)
-    sel=find(strcmp(seqs,trackseqs{i}));
-    if ~isempty(sel)
-      trackconc(i,cycle+1)=concentrations(sel);
-    end
-  end
+end
+
+function plotseqs(pcr)
   setfig('seqs');clf;
-  peakconc=max(trackconc,[],2);   % Peak of each sequence
+  peakconc=max(pcr.trackconc,[],2);   % Peak of each sequence
   maxplot=20;   % Maximum number to plot
   minplotconc=0;
   if length(peakconc)>maxplot
     minplotconc=prctile(peakconc,(1-maxplot/length(peakconc))*100);
   end
   sel=peakconc>=minplotconc;
-  semilogy((1:size(trackconc,2))-1,trackconc(sel,:)');
+  semilogy((1:size(pcr.trackconc,2))-1,pcr.trackconc(sel,:)');
   xlabel('Cycle');
   ylabel('Concentration (M)');
   leg={};
-  for i=1:length(trackseqs)
+  for i=1:length(pcr.trackseqs)
     if sel(i)
-      leg{end+1}=sprintf('%s %s',trackseqs{i},concfmt(trackconc(i,end)));
+      leg{end+1}=sprintf('%s %s',pcr.trackseqs{i},concfmt(pcr.trackconc(i,end)));
     end
   end
   
   legend(leg,'Location','SouthOutside');
-  pause(0.1);
-  fprintf('Cycle took %.1f seconds\n', toc);
 end
-pcr.trackseqs=trackseqs;
-pcr.trackconc=trackconc;
-pcr.dstrack=dstrack;
-
-function dcv=rxequation(t,c,kd,ka)
-global oldt prevt;
-if isempty(prevt)
-  prevt=t;
-end
-u=c(:,end);  % Unpaired concentrations
-p=c(:,1:end-1);
-% Pairs  dCij/dt = ka*Ui*Uj-kdCij
-dc=-kd.*p+ka.*(u*u');
-% Unpaired to balance
-du=-sum(dc);
-dc(:,end+1)=du;
-dcv=dc(:);
-if (isempty(oldt) || t-oldt>0.01 || t<oldt) && t>prevt
-  relchange=abs(dc./c)*(t-prevt);
-  maxrelchange=max(relchange(c>1e-12));
-  %  fprintf('t=%f, maxrelchange=%.2f%%, maxabschange=%s\n',t,maxrelchange*100,concfmt((t-prevt)*max(abs(dc(c>0)))));
-  oldt=t;
-  set(gca,'YScale','log');
-  %  keyboard
-end
-prevt=t;
