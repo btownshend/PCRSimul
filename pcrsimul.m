@@ -63,7 +63,7 @@ for cycle=1:args.ncycles
     [sconc]=sort(concentrations,'descend');
     sel=concentrations>=sconc(args.maxstrands);
     sel=sel|args.labels.isKey(seqs);   % Keep any labelled ones also
-    fprintf('Keeping %d/%d strands with concentration >= %s\n', sum(sel), length(seqs), concfmt(sconc));
+    fprintf('Keeping %d/%d strands with concentration >= %s\n', sum(sel), length(seqs), concfmt(sconc(args.maxstrands)));
     seqs=seqs(sel);
     concentrations=concentrations(sel);
   end
