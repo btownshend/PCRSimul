@@ -12,7 +12,7 @@ elseif c>=1e-12
 elseif c>=1e-15
   units='fM'; c=c*1e15;
 else
-  s=sprintf('%6.2g M',c);
+  s=sprintf('%7.2g M',c);
   return;
 end
 s=sprintf('%5.1f %-2.2s',c,units);
