@@ -18,7 +18,7 @@
 % 
 % Returns:
 %  pcr: struct containing setup, and ordered complexes in each cycle
-function pcr=pcrsimul(seqs,concentrations,varargin)
+function pcr=PCRSimul(seqs,concentrations,varargin)
   defaults=struct('temp',55,'maxsize',2,'ncycles',1,'verbose',false,'minconc',1e-12,'cutoff',1e-6,'mindisplayconc',1e-12,'labels',containers.Map(),'time',30,'ka',1e6,'sodium',0.050,'mg',0.002,'maxstrands',50);
   args=processargs(defaults,varargin);
 
