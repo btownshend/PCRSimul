@@ -37,13 +37,12 @@ args.labels('GCTGTCACCGGA')='s31';
 args.labels('TCCGGTCTGATGAGTCC')='s12';
 args.labels('GGACGAAACAGC')='s23';
 
-
 % Add RC of all labels
 k=args.labels.keys();
 for i=1:length(k)
   args.labels(rc(k{i}))=[args.labels(k{i}),'-RC'];
 end
-  
+
 fprintf('Running simulation at T=%.0fC, Anneal time=%.0f sec, ka=%.1g /M/s\n', args.temp, args.time, args.ka);
 fprintf('Initial concentrations:\n');
 seqsprint(seqs,abs(concentrations),'labels',args.labels);
@@ -71,6 +70,7 @@ for cycle=1:args.ncycles
   c=complexes(seqs,'temp',args.temp,'maxsize',args.maxsize,'cutoff',args.cutoff,'verbose',args.verbose,'concentrations',abs(concentrations),'sodium',args.sodium,'mg',args.mg);
   fprintf('Found %d possible ordered complexes,',length(c.ocomplex));
 
+  if false
   % Estimate upper bound on possible concentration of each complex over time window
   for i=1:length(c.ocomplex)
     if length(c.ocomplex(i).perm)==1
@@ -88,6 +88,7 @@ for cycle=1:args.ncycles
   c.allocomplex=c.ocomplex;
   c.ocomplex=c.ocomplex([c.ocomplex.maxconc]>=args.minconc);
   fprintf('reduced to %d with maxconc>=%s\n', length(c.ocomplex),concfmt(args.minconc));
+  end
 
   % compute concentration after a given time window (instead of using equilibrium)
   c=solvedynamics(c,args.time,'temp',args.temp,'ka',args.ka,'verbose',args.verbose);
