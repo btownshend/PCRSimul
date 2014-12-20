@@ -23,6 +23,8 @@ classdef PCRSimul < handle
     args;
     labels;
     cycle;   % Structure array of cycle data -- cycle(1) is input, cycle(2) is result of 1 cycle, etc.
+    seqids;
+    maxseqid;
   end
 
   methods
@@ -54,6 +56,13 @@ classdef PCRSimul < handle
 
       % Initialize tracking
       obj.cycle=struct('cyclenum',0,'seqs',{seqs},'concentrations',concentrations,'dsconc',nan,'c',[]);
+
+      % Initialize sequence IDs
+      obj.seqids=containers.Map();
+      obj.maxseqid=0;
+      for i=1:length(seqs)
+        obj.getid(seqs{i});
+      end
     end
     
     function run(obj,ncycles)  
@@ -67,16 +76,41 @@ classdef PCRSimul < handle
         obj.cycle(end).dsconc=ds;
         obj.cycle(end).c=c;
         obj.cycle(end+1)=struct('cyclenum',cycle,'seqs',{seqs},'concentrations',concentrations,'dsconc',nan,'c',[]);
+        obj.printseqs();
         obj.plotseqs();
         pause(0.1);
       end
     end
 
-    function printseqs(obj,cycle)
-      if nargin<2
+    function id=getid(obj,seq) 
+      if ~obj.seqids.isKey(seq)
+        obj.maxseqid=obj.maxseqid+1;
+        obj.seqids(seq)=obj.maxseqid;
+      end
+      id=obj.seqids(seq);
+    end
+      
+    function printseqs(obj,cycle,mindisplayconc)
+      if nargin<2 || isempty(cycle)
         cycle=length(obj.cycle);
       end
-      seqsprint(obj.cycle(cycle).seqs,abs(obj.cycle(cycle).concentrations),'labels',obj.labels);
+      if nargin<3 || isempty(mindisplayconc)
+        mindisplayconc=obj.args.mindisplayconc;
+      end
+      cy=obj.cycle(cycle);
+      sel=abs(cy.concentrations)>=mindisplayconc;
+      sel=sel|obj.labels.isKey(cy.seqs);
+      fprintf('Sequences present after cycle %d ', cy.cyclenum);
+      if sum(~sel)>0
+        fprintf('(showing %d/%d that are >=%s)\n', sum(sel), length(sel), concfmt(mindisplayconc));
+      else
+        fprintf('\n');
+      end
+      seqs=cy.seqs(sel);
+      concs=cy.concentrations(sel);
+      for i=1:length(seqs)
+        fprintf('%3d %s %-25s %s\n',obj.getid(seqs{i}), concfmt(concs(i)),getlabel(seqs{i},obj.args.labels,1),seqs{i});
+      end
     end
     
     function plotds(obj)
@@ -88,12 +122,22 @@ classdef PCRSimul < handle
 
 
     function [seqs,concentrations,c,dsconc]=onecycle(obj,seqs,concentrations)
-      if length(seqs)>obj.args.maxstrands
-        % Reduce number of strands going into complexes
+      % Initialize for this cycle
+      newseqs={};newconc=[];
+      dsconc=0;ssconc=0;
+      
+      % Reduce number of strands going into complexes
+      if length(concentrations)>obj.args.maxstrands
         [sconc]=sort(concentrations,'descend');
-        sel=concentrations>=sconc(obj.args.maxstrands);
-        sel=sel|obj.labels.isKey(seqs);   % Keep any labelled ones also
-        fprintf('Keeping %d/%d strands with concentration >= %s\n', sum(sel), length(seqs), concfmt(sconc(obj.args.maxstrands)));
+        sel=concentrations>=max(sconc(obj.args.maxstrands),obj.args.minconc);
+      else
+        sel=concentrations>=obj.args.minconc;
+      end
+      sel=sel|obj.labels.isKey(seqs);   % Keep any labelled ones also
+      if sum(~sel)>0
+        fprintf('Finding complexes for %d/%d strands with concentration >= %s\n', sum(sel), length(seqs), concfmt(sconc(obj.args.maxstrands)));
+        newseqs={newseqs{:},seqs{~sel}};
+        newconc=[newconc,concentrations(~sel)];
         seqs=seqs(sel);
         concentrations=concentrations(sel);
       end
@@ -127,10 +171,6 @@ classdef PCRSimul < handle
 
       % compute concentration after a given time window (instead of using equilibrium)
       c=solvedynamics(c,obj.args.time,'temp',obj.args.temp,'ka',obj.args.ka,'verbose',obj.args.verbose);
-      
-      % Initialize for this cycle
-      newseqs={};newconc=[];
-      dsconc=0;ssconc=0;
       
       % Loop over all the ordered complexes
       for i=1:length(c.ocomplex)
@@ -194,7 +234,7 @@ classdef PCRSimul < handle
             newconc(end+1)=pconc;
             if pconc>=obj.args.mindisplayconc
               fprintf('Strand %d.%d (%c) anneals to strand %2d.%-3d (%c) with frac=%g -> %s (#%d)\n', ...
-                      oc.perm(j), length(seq), seq(end), strand(k), strandpos(k), seqs{strand(k)}(strandpos(k)), p.pairfrac(endpos,k),concfmt(pconc),length(newconc));
+                      oc.perm(j), length(seq), seq(end), strand(k), strandpos(k), seqs{strand(k)}(strandpos(k)), p.pairfrac(endpos,k),concfmt(pconc),obj.getid(newseqs{end}));
             end
             
             if newconc(end)>obj.args.mindisplayconc
@@ -224,10 +264,6 @@ classdef PCRSimul < handle
         end
       end
       
-      % Merge duplicates
-      %  fprintf('Before merging:\n');
-      %  seqsprint(newseqs,abs(newconc),'labels',obj.labels);
-      
       [seqs,ia,ic]=unique(newseqs,'sorted');
       concentrations=zeros(1,length(seqs));
       for i=1:length(ic)
@@ -238,14 +274,6 @@ classdef PCRSimul < handle
       end
       [concentrations,ord]=sort(concentrations,'descend');
       seqs=seqs(ord);
-      sel=concentrations>=obj.args.mindisplayconc;
-      seqsprint(seqs(sel),abs(concentrations(sel)),'labels',obj.labels);
-      % Remove any below minconc
-      if any(abs(concentrations)<obj.args.minconc)
-        fprintf('Keeping %d sequences with concentration >= %s\n', sum(abs(concentrations)>=obj.args.minconc),concfmt(obj.args.minconc));
-        seqs=seqs(abs(concentrations)>=obj.args.minconc);
-        concentrations=concentrations(abs(concentrations)>=obj.args.minconc);
-      end
     end
 
     function plotseqs(obj,maxplot)
@@ -279,7 +307,7 @@ classdef PCRSimul < handle
       leg={};
       for i=1:length(trackseqs)
         if sel(i)
-          leg{end+1}=sprintf('%s %s',getlabel(trackseqs{i},obj.labels),concfmt(trackconc(i,end)));
+          leg{end+1}=sprintf('%d %s %s',obj.getid(trackseqs{i}),getlabel(trackseqs{i},obj.labels),concfmt(trackconc(i,end)));
         end
       end
       
