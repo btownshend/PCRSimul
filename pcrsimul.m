@@ -37,7 +37,6 @@ args.labels('GCTGTCACCGGA')='s31';
 args.labels('TCCGGTCTGATGAGTCC')='s12';
 args.labels('GGACGAAACAGC')='s23';
 
-args.labels(rc('TTTTTATTTTTCTTTTTGCTGTTTCGTCC'))='X_Primer';
 
 % Add RC of all labels
 k=args.labels.keys();
