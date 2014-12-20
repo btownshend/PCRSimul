@@ -13,8 +13,16 @@ fprintf('Solving dynamics for %d complexes over %f seconds\n', ncomplex, t);
 %    or complex m can be broken down to from complex k
 % Using fixed ka, find kd such that equilibrium stored in c.ocomplexconc will be reached
 %   Or can use c.dG to find kd
-A=zeros(ncomplex,ncomplex,ncomplex);  % A(i,j,k) is rate of association of i+j -> k; 
-D=zeros(ncomplex,ncomplex,ncomplex);  % D(i,j,k) is rate of disocciation of k -> i+j
+
+% A2{k}(i,j) is the rate of production of k due to bimolecular reactions when scaled by c(i)*c(j);  since it is symmetric, total is A2{k}(i,j)+A2{k}(j,i) (i.e. each are 1/2)
+% D2(i,j) is the rate of consumption of i and j in formation of a bimolecular complex
+% A1(i,k) is the rate of production of i, when scaled by c(k)
+% D1(k) is the rate of consumption of k, when scaled by c(k)
+A2={};
+for k=1:ncomplex
+  A2{k}=spalloc(ncomplex,ncomplex,1);  % A{k}(i,j) is rate of association of i+j -> k; 
+end
+A1=zeros(ncomplex,ncomplex);  % A1(i,k) is rate of disocciation of k -> i
 for i=1:ncomplex
   cstr{i}=sprintf('%d,',c.ocomplex(i).perm);
 end
@@ -28,22 +36,20 @@ for i=1:ncomplex
       if args.verbose
         fprintf('[%s]+[%s]->[%s]\n', sprintf('%d ',c.ocomplex(i).perm), sprintf('%d ',c.ocomplex(j).perm), sprintf('%d ',c.ocomplex(k).perm));
       end
-      A(i,j,k)=A(i,j,k)+args.ka/2;
+      A2{k}(i,j)=A2{k}(i,j)+args.ka/2;
+      A2{k}(j,i)=A2{k}(j,i)+args.ka/2;
       % Dissociation rate to reach equilibrium
       kd=args.ka*c.ocomplex(i).eqconc*c.ocomplex(j).eqconc/c.ocomplex(k).eqconc;
-      D(i,j,k)=D(i,j,k)+kd/2;
+      A1(i,k)=A1(i,k)+kd;
+      A1(j,k)=A1(j,k)+kd;
     end
   end
 end
-Dsum=squeeze(sum(sum(D,1)));
-sD2=squeeze(sum(D,2));
-As={};
-sA3=zeros(size(A,1),size(A,2));
-for k=1:size(A,3)
-  As{k}=sparse(A(:,:,k));
-  sA3=sA3+As{k};
+D1=sum(A1)'/2;
+D2=zeros(ncomplex,ncomplex);
+for k=1:length(A2)
+  D2=D2+A2{k}*2;
 end
-clear A;
 
 initconds=c.concentrations;   % First complexes are strands by themselves
 initconds(end+1:ncomplex)=0;
@@ -55,17 +61,17 @@ end
 if false
   jpat=speye(length(initconds));
   jtmp=ones(1,length(initconds));
-  dc1=dyneqn(jtmp,As,D);
+  dc1=dyneqn(jtmp,A2,D);
   for i=1:length(initconds)
     jtmp(i)=0;
-    dc2=dyneqn(jtmp,As,D);
+    dc2=dyneqn(jtmp,A2,D);
     jtmp(i)=1;
     jpat(i,dc1~=dc2)=1;
   end
 end
 
 options=odeset('Stats',statsval,'RelTol',args.reltol,'AbsTol',args.abstol,'NonNegative',1:length(initconds),'NormControl','off'); % ,'JPattern',jpat); % ,'OutputFcn',@odeplot);
-[t,y]=ode15s(@(t,y) dyneqn(y,As,sA3,D,sD2,Dsum),[0,t],initconds,options);
+[t,y]=ode15s(@(t,y) dyneqn(y,A2,D2,A1,D1),[0,t],initconds,options);
 d=c;
 d.time=t;
 d.cconc=y;
@@ -85,28 +91,13 @@ end
 legend(leg,'Location','EastOutside');
 
 
-function dC=dyneqn(c,As,sA3,D,sD2,Dsum)
+function dC=dyneqn(c,A2,D2,A1,D1)
 dC=zeros(size(c));
 cc=c*c';
 for i=1:length(c)
-  %  d2=sum(sum(cc.*A(:,:,i)))-c(i)*sum(c'*squeeze(A(i,:,:)))*2-sum(sum(D(:,:,i)))*c(i)+sum(squeeze(D(i,:,:))*c)*2;
-  %  d2=sum(sum(cc.*A(:,:,i)))-c(i)*dot(c,sum(A(i,:,:),3))*2-sum(sum(D(:,:,i)))*c(i)+dot(squeeze(sum(D(i,:,:),2)),c)*2;
-  %  d2=sum(sum(cc.*A(:,:,i)))-c(i)*sA3c(i)*2-sum(sum(D(:,:,i)))*c(i)+sD2c(i)*2;
-  %  dC(i)=sum(sum(cc.*A(:,:,i)));   % Production from component parts
-  dC(i)=c'*(As{i}*c);   % Production from component parts
-  %    if abs(d2-dC(i))>1e-15
-  %      keyboard
-  %    end
+  dC(i)=c'*(A2{i}*c);   % Production from component parts
 end
-sA3c=sA3*c;
-sD2c=sD2*c;
 dC=dC ...
-   -c.*sA3c*2 ...    % Consumed in forming new complex
-   -Dsum.*c ...	     % Degradation of complex to components
-   +sD2c*2;	     % Formation due to breakdown of a complex
-%total=[ 1 1 2 2 2]*c;
-%fprintf(' C=[%s]\ndC=[%s]\n',sprintf('%.3g ',c),sprintf('%.3g ',dC));%,total);
-                                                                              %if abs(total-4.1e-7)>1e-8
-                                                                              %  keyboard
-                                                                              %end
-%set(gca,'YScale','log');
+   -c.*(D2*c) ...    % Consumed in forming new complex
+   -D1.*c ...	     % Degradation of complex to components
+   +A1*c;	     % Formation due to breakdown of a complex
