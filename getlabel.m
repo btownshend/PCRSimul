@@ -1,5 +1,6 @@
 % Build a getlabel for a sequence
 function s=getlabel(seq,l,depth)
+  maxliteral=6;
   if nargin<3
     depth=1;
   end
@@ -18,7 +19,7 @@ function s=getlabel(seq,l,depth)
   end
 
   % See if we can find a prefix getlabel
-  for k=length(seq)-1:-1:6
+  for k=length(seq)-1:-1:maxliteral
     if l.isKey(seq(1:k))
       s=['<',l(seq(1:k)),'>',getlabel(seq(k+1:end),l,depth+1)];
       return;
@@ -26,7 +27,7 @@ function s=getlabel(seq,l,depth)
   end
 
   % getlabel suffix?
-  for m=1:length(seq)-6
+  for m=1:length(seq)-maxliteral
     if l.isKey(seq(m:end))
       s=[getlabel(seq(1:m-1),l,depth+1),'<',l(seq(m:end)),'>'];
       return;
@@ -34,8 +35,8 @@ function s=getlabel(seq,l,depth)
   end
 
   % No matches - trim by 1 on each end and recheck
-  if length(seq)<6
     s='*';
+  if length(seq)<maxliteral
     return;
   end
 
