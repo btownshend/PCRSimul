@@ -221,7 +221,7 @@ classdef PCRSimul < handle
           newconc(end+1)=p.pairfrac(endpos,end)*oc.conc;
           if newconc(end)>=obj.args.mindisplayconc
             fprintf('Strand %d.%d (%c) unpaired with frac=%g -> %s (#%d)\n', ...
-                    oc.perm(j), length(seq), seq(end), p.pairfrac(endpos,end),concfmt(newconc(end)),length(newconc));
+                    oc.perm(j), length(seq), seq(end), p.pairfrac(endpos,end),concfmt(newconc(end)),obj.getid(newseqs{end}));
           end
           
           % Go through all the possible pairings
