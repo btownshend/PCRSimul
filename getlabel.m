@@ -35,17 +35,34 @@ function s=getlabel(seq,l,depth)
   end
 
   % No matches - trim by 1 on each end and recheck
-    s='*';
   if length(seq)<maxliteral
+    s=seq;
     return;
   end
 
   s=getlabel(seq(2:end-1),l,depth+1);
-  if s(1)~='*'
-    s=['*',s];
+  s=[seq(1),s,seq(end)];
+  return;
+  nlead=find(s=='<',1)-1;
+  if isempty(nlead)
+    nlead=length(s);
   end
-  if s(end)~='*'
-    s=[s,'*'];
+  if nlead<maxliteral && s(1)~='*'
+    s=[seq(1),s];
+  else
+    s=['*',s(nlead:end)];
+  end
+  ntail=find(s=='>',1,'last')-1;
+  if isempty(ntail)
+    ntail=length(s);
+  end
+  if ntail<maxliteral && s(end)~='*'
+    s=[s,seq(end)];
+  else
+    s=[s(1:end-ntail),'*'];
+  end
+  if strcmp(s,'**')
+    s='*';
   end
 end
 
