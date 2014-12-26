@@ -175,7 +175,7 @@ classdef PCRSimul < handle
       % Loop over all the ordered complexes
       for i=1:length(c.ocomplex)
         oc=c.ocomplex(i);
-        if oc.conc==0
+        if oc.conc<obj.args.minconc
           continue;
         end
 
