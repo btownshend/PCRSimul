@@ -178,7 +178,7 @@ if ~isempty(args.concentrations)
   if args.ordered
     % Update c.complex(:).eqconc using c.ocomplex(:).eqconc
     for i=1:length(c.complex)
-      c.complex(i).eqconc=sum(c.ocomplex([c.ocomplex.id]==c.complex(i).id).eqconc);
+      c.complex(i).eqconc=sum([c.ocomplex([c.ocomplex.id]==c.complex(i).id).eqconc]);
     end
   end
   
