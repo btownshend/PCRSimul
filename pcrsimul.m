@@ -79,6 +79,7 @@ classdef PCRSimul < handle
         obj.cycle(end+1)=struct('cyclenum',cycle,'seqs',{seqs},'concentrations',concentrations,'dsconc',nan,'c',[]);
         obj.printseqs();
         obj.plotseqs();
+        obj.plotds();
         pause(0.1);
       end
     end
