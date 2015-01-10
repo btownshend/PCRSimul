@@ -67,6 +67,7 @@ classdef PCRSimul < handle
     
     function run(obj,ncycles)  
       fprintf('Running simulation at T=%.0fC, Anneal time=%.0f sec, ka=%.1g /M/s\n', obj.args.temp, obj.args.time, obj.args.ka);
+      obj.printseqs();
 
       for cycle=length(obj.cycle)+(0:ncycles-1)
         tic;
