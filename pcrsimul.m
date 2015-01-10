@@ -129,13 +129,14 @@ classdef PCRSimul < handle
       % Reduce number of strands going into complexes
       if length(concentrations)>obj.args.maxstrands
         [sconc]=sort(concentrations,'descend');
-        sel=concentrations>=max(sconc(obj.args.maxstrands),obj.args.minconc);
+        selminconc=max(sconc(obj.args.maxstrands),obj.args.minconc);
       else
-        sel=concentrations>=obj.args.minconc;
+        selminconc=obj.args.minconc;
       end
+      sel=concentrations>=selminconc;
       sel=sel|obj.labels.isKey(seqs);   % Keep any labelled ones also
       if sum(~sel)>0
-        fprintf('Finding complexes for %d/%d strands with concentration >= %s\n', sum(sel), length(seqs), concfmt(sconc(obj.args.maxstrands)));
+        fprintf('Finding complexes for %d/%d strands with concentration >= %s\n', sum(sel), length(seqs), concfmt(selminconc));
         newseqs={newseqs{:},seqs{~sel}};
         newconc=[newconc,concentrations(~sel)];
         seqs=seqs(sel);
