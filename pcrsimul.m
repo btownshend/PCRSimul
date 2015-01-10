@@ -1,8 +1,8 @@
 % Perform PCR simulation with given sequences and concentrations
 % Arguments:
 %  seqs - cell array of sequences (oligos)
+%	'*' at end indicate 3' end is blocked
 %  concentrations - array of initial concentration of each oligo
-%		    negative concentrations indicate 3' end is blocked
 % Optional arguments: 
 %  time: time to anneal in seconds (default:30)
 %  temp: annealing temperature (default: 55)
@@ -144,7 +144,7 @@ classdef PCRSimul < handle
 
       % Find all the complexes
       fprintf('Running complexes on %d strands...',length(seqs));
-      c=complexes(seqs,'temp',obj.args.temp,'maxsize',obj.args.maxsize,'cutoff',obj.args.cutoff,'verbose',obj.args.verbose,'concentrations',abs(concentrations),'sodium',obj.args.sodium,'mg',obj.args.mg);
+      c=complexes(cellfun(@(z) strrep(z,'*',''), seqs, 'UniformOutput',false),'temp',obj.args.temp,'maxsize',obj.args.maxsize,'cutoff',obj.args.cutoff,'verbose',obj.args.verbose,'concentrations',abs(concentrations),'sodium',obj.args.sodium,'mg',obj.args.mg);
       fprintf('done\n');
       
       fprintf('Found %d possible ordered complexes,',length(c.ocomplex));
@@ -180,7 +180,7 @@ classdef PCRSimul < handle
         end
 
         % Compute base pair probabilities for this complex
-        p=pairs(seqs,oc.perm,'temp',obj.args.temp,'cutoff',obj.args.cutoff,'verbose',obj.args.verbose,'sodium',obj.args.sodium,'mg',obj.args.mg);
+        p=pairs(cellfun(@(z) strrep(z,'*',''), seqs, 'UniformOutput',false),oc.perm,'temp',obj.args.temp,'cutoff',obj.args.cutoff,'verbose',obj.args.verbose,'sodium',obj.args.sodium,'mg',obj.args.mg);
         c.ocomplex(i).pairs=p;	% Keep for reference
         
         % Compute number of double stranded bonds
@@ -206,12 +206,12 @@ classdef PCRSimul < handle
         endpos=0;
         for j=1:length(oc.perm)
           seq=seqs{oc.perm(j)};
-          endpos=endpos+length(seq);
+          endpos=endpos+length(strrep(seq,'*',''));
           
-          if concentrations(oc.perm(j))<0
+          if seq(end)=='*'
             % Blocked 3' end
-            newseqs{end+1}=seqs{i};
-            newconc(end+1)=concentrations(oc.perm(j));
+            newseqs{end+1}=seq;
+            newconc(end+1)=oc.conc;
             fprintf('Strand %d.%d blocked extension\n',oc.perm(j),length(seq));
             continue;
           end
@@ -229,18 +229,19 @@ classdef PCRSimul < handle
             if p.pairfrac(endpos,k)==0
               continue;
             end
+            seqk=strrep(seqs{strand(k)},'*','');
             pconc=p.pairfrac(endpos,k)*oc.conc;   % Concentration of this pair
-            newseqs{end+1}=[seq,rc(seqs{strand(k)}(1:strandpos(k)-1))];
+            newseqs{end+1}=[seq,rc(seqk(1:strandpos(k)-1))];
             newconc(end+1)=pconc;
             if pconc>=obj.args.mindisplayconc
               fprintf('Strand %d.%d (%c) anneals to strand %2d.%-3d (%c) with frac=%g -> %s (#%d)\n', ...
-                      oc.perm(j), length(seq), seq(end), strand(k), strandpos(k), seqs{strand(k)}(strandpos(k)), p.pairfrac(endpos,k),concfmt(pconc),obj.getid(newseqs{end}));
+                      oc.perm(j), length(seq), seq(end), strand(k), strandpos(k), seqk(strandpos(k)), p.pairfrac(endpos,k),concfmt(pconc),obj.getid(newseqs{end}));
             end
             
             if newconc(end)>obj.args.mindisplayconc
               off1=0;
               alignpos=length(seq)-1;
-              off2=strandpos(k)-1+length(seq)-length(seqs{strand(k)});
+              off2=strandpos(k)-1+length(seq)-length(seqk);
               if off2<0
                 off1=-off2;
                 alignpos=alignpos-off2;
@@ -249,7 +250,7 @@ classdef PCRSimul < handle
               fprintf(' %s5''-%s-3''\n',blanks(off1),seq);
               fprintf(' %s   ',blanks(off1));
               for m=1:length(seq)
-                if length(seq)-m > length(seqs{strand(k)})-strandpos(k)
+                if length(seq)-m > length(seqk)-strandpos(k)
                   fprintf(' ');
                 elseif k+length(seq)-m>0 && p.pairfrac(endpos-length(seq)+m,k+length(seq)-m)>p.pairfrac(endpos,k)/2
                   fprintf('|');
@@ -258,7 +259,7 @@ classdef PCRSimul < handle
                 end
               end
               fprintf('\n');
-              fprintf(' %s3''-%s-5''\n\n',blanks(off2),seqs{strand(k)}(end:-1:1));
+              fprintf(' %s3''-%s-5''\n\n',blanks(off2),seqk(end:-1:1));
             end
           end
         end
@@ -268,9 +269,9 @@ classdef PCRSimul < handle
       concentrations=zeros(1,length(seqs));
       for i=1:length(ic)
         if newconc(i)<0
-          fprintf('Warning: newconc(%d)<0 (%g)\n', i, newconc(i));
+          error('Error: newconc(%d)<0 (%g)\n', obj.getid(newseqs{i}), newconc(i));
         end
-        concentrations(ic(i))=concentrations(ic(i))+max(0,newconc(i));
+        concentrations(ic(i))=concentrations(ic(i))+newconc(i);
       end
       [concentrations,ord]=sort(concentrations,'descend');
       seqs=seqs(ord);
