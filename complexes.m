@@ -29,7 +29,7 @@ if args.verbose
 end
 [s,r]=system(cmd);
 if (s ~= 0)
-  error('Error running complexes');
+  error('Error running complexes: %s',r);
 end
 if args.verbose
   fprintf('%s',r);
