@@ -115,6 +115,51 @@ classdef PCRSimul < handle
       end
     end
     
+    function lenhist=getlengths(obj,cycle,transcribable)
+      if nargin<2 || isempty(cycle)
+        cycle=length(obj.cycle);
+      end
+      if nargin<3
+        transcribable=false;
+      end
+      lenhist=0;
+      cy=obj.cycle(cycle);
+      for i=1:length(cy.seqs)
+        l=length(cy.seqs{i});
+        if transcribable && ~strncmp(rc(cy.seqs{i}),'AATTTAATACGACTCACTATAGGG',length('AATTTAATACGACTCACTATAGGG'))
+          continue;
+        end
+        if l>length(lenhist)
+          lenhist(l)=cy.concentrations(i);
+        else
+          lenhist(l)=lenhist(l)+cy.concentrations(i);
+        end
+      end
+    end
+    
+    function plotlengths(obj,cycle)
+      if nargin<2
+        cycle=length(obj.cycle);
+      end
+      lens=obj.getlengths(cycle);
+      setfig('pcrsimul-lengths');
+      subplot(211);
+      plot(lens*1e6);
+      xlabel('Length');
+      ylabel('Conc (\mu M)');
+      title(sprintf('All sequences (Cycle %d) Max=%s = %.0f%%',obj.cycle(cycle).cyclenum,concfmt(max(lens)),max(lens)/sum(lens)*100));
+      c=axis;
+      subplot(212);
+      tlens=obj.getlengths(cycle,true);
+      plot(tlens*1e6);
+      xlabel('Length');
+      ylabel('Conc (\mu M)');
+      title(sprintf('Transcribable sequences (Max=%s, Frac=%.0f%%)',concfmt(max(tlens)),max(tlens)/sum(tlens)*100));
+      c2=axis;
+      c2(2)=c(2);
+      axis(c2);
+    end
+    
     function plotds(obj)
       setfig('pcrsimul-dstrack');
       plot([obj.cycle.cyclenum],[obj.cycle.dsconc]*1e6,'o-');
