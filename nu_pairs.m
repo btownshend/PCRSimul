@@ -1,5 +1,5 @@
 % Find pair probability for given ordered complex
-function c=pairs(seqs,ocperm,varargin)
+function c=nu_pairs(seqs,ocperm,varargin)
 defaults=struct('maxsize',2,'temp',55,'cutoff',.001,'verbose',false,'sodium',1,'mg',0);
 args=processargs(defaults,varargin);
 

@@ -183,7 +183,7 @@ classdef PCRSimul < handle
         end
 
         % Compute base pair probabilities for this complex
-        p=pairs(cellfun(@(z) strrep(z,'*',''), seqs, 'UniformOutput',false),oc.perm,'temp',obj.args.temp,'cutoff',obj.args.cutoff,'verbose',obj.args.verbose,'sodium',obj.args.sodium,'mg',obj.args.mg);
+        p=nu_pairs(cellfun(@(z) strrep(z,'*',''), seqs, 'UniformOutput',false),oc.perm,'temp',obj.args.temp,'cutoff',obj.args.cutoff,'verbose',obj.args.verbose,'sodium',obj.args.sodium,'mg',obj.args.mg);
         c.ocomplex(i).pairs=p;	% Keep for reference
         
         % Compute number of double stranded bonds
