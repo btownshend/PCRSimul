@@ -39,7 +39,7 @@ classdef PCRSimul < handle
 
       % Add common labels
       obj.labels=obj.args.labels;
-      obj.labels('AATTTAATACGACTCACTATAGGG')='T7';
+      obj.labels('AATTTAATACGACTCACTATA')='T7';
       obj.labels('CTTTTCCGTATATCTCGCCAG')='A';
       obj.labels('CGGAAATTTCAAAGGTGCTTC')='B';
       obj.labels('AAACAAACAAA')='W';
@@ -66,8 +66,7 @@ classdef PCRSimul < handle
     end
     
     function run(obj,ncycles)  
-      fprintf('Running simulation at T=%.0fC, Anneal time=%.0f sec, ka=%.1g /M/s\n', obj.args.temp, obj.args.time, obj.args.ka);
-      obj.printseqs();
+      fprintf('********* Running %d cycles of simulation at T=%.0fC, Anneal time=%.0f sec, ka=%.1g /M/s\n', ncycles, obj.args.temp, obj.args.time, obj.args.ka);
 
       for cycle=length(obj.cycle)+(0:ncycles-1)
         tic;
@@ -111,8 +110,9 @@ classdef PCRSimul < handle
       seqs=cy.seqs(sel);
       concs=cy.concentrations(sel);
       for i=1:length(seqs)
-        fprintf('%3d %s %-25s %s\n',obj.getid(seqs{i}), concfmt(concs(i)),getlabel(seqs{i},obj.args.labels,1),seqs{i});
+        fprintf('%3d %s %3d %-25s %s\n',obj.getid(seqs{i}), concfmt(concs(i)),length(seqs{i}),getlabel(seqs{i},obj.args.labels,1),seqs{i});
       end
+      fprintf('Total: %s\n', concfmt(sum(concs),2));
     end
     
     function lenhist=getlengths(obj,cycle,transcribable)
@@ -192,7 +192,17 @@ classdef PCRSimul < handle
 
       % Find all the complexes
       fprintf('Running complexes on %d strands...',length(seqs));
-      c=complexes(cellfun(@(z) strrep(z,'*',''), seqs, 'UniformOutput',false),'temp',obj.args.temp,'maxsize',obj.args.maxsize,'cutoff',obj.args.cutoff,'verbose',obj.args.verbose,'concentrations',abs(concentrations),'sodium',obj.args.sodium,'mg',obj.args.mg);
+      genseqs=seqs;
+      nuc='ACGT';
+      for i=1:length(genseqs)
+        for j=1:length(genseqs{i})
+          if genseqs{i}(j)=='N'
+            genseqs{i}(j)=nuc(randi(1,1,1));
+          end
+        end
+      end
+      
+      c=complexes(cellfun(@(z) strrep(z,'*',''), genseqs, 'UniformOutput',false),'temp',obj.args.temp,'maxsize',obj.args.maxsize,'cutoff',obj.args.cutoff,'verbose',obj.args.verbose,'concentrations',abs(concentrations),'sodium',obj.args.sodium,'mg',obj.args.mg);
       fprintf('done\n');
       
       fprintf('Found %d possible ordered complexes,',length(c.ocomplex));
@@ -228,24 +238,25 @@ classdef PCRSimul < handle
         end
 
         % Compute base pair probabilities for this complex
-        p=nu_pairs(cellfun(@(z) strrep(z,'*',''), seqs, 'UniformOutput',false),oc.perm,'temp',obj.args.temp,'cutoff',obj.args.cutoff,'verbose',obj.args.verbose,'sodium',obj.args.sodium,'mg',obj.args.mg);
+        p=nu_pairs(cellfun(@(z) strrep(z,'*',''), genseqs, 'UniformOutput',false),oc.perm,'temp',obj.args.temp,'cutoff',obj.args.cutoff,'verbose',obj.args.verbose,'sodium',obj.args.sodium,'mg',obj.args.mg);
         c.ocomplex(i).pairs=p;	% Keep for reference
         
         % Compute number of double stranded bonds
         ssconc1=sum(p.pairfrac(:,end))*oc.conc;
         dsconc1=sum(sum(p.pairfrac(:,1:end-1)))*oc.conc;
         if oc.conc>=obj.args.mindisplayconc
-          fprintf('Complex %d [%s]: %s (%s@eq), unpaired nucleotides: %s, paired: %s, total: %s\n', i, sprintf('%d ',oc.perm),concfmt(oc.conc), concfmt(oc.eqconc), concfmt(ssconc1), concfmt(dsconc1), concfmt(ssconc1+dsconc1));
+          fprintf('Complex %d [%s]: %s (%s@eq), unpaired nucleotides: %s, paired: %s, total: %s\n', i, sprintf('%d ',arrayfun(@(z) obj.getid(seqs{z}),oc.perm)),concfmt(oc.conc), concfmt(oc.eqconc), concfmt(ssconc1), concfmt(dsconc1), concfmt(ssconc1+dsconc1));
         end
         dsconc=dsconc+dsconc1;
         ssconc=ssconc+ssconc1;
 
         % Map positions to strand, strandpos
         endpos=0;
-        strand=[]; strandpos=[];
+        strand=[]; strandpos=[]; strandid=[];
         for j=1:length(oc.perm)
           seq=seqs{oc.perm(j)};
           strand((1:length(seq))+endpos)=oc.perm(j);
+          strandid((1:length(seq))+endpos)=obj.getid(seqs{oc.perm(j)});
           strandpos((1:length(seq))+endpos)=1:length(seq);
           endpos=endpos+length(seq);
         end
@@ -260,7 +271,7 @@ classdef PCRSimul < handle
             % Blocked 3' end
             newseqs{end+1}=seq;
             newconc(end+1)=oc.conc;
-            fprintf('Strand %d.%d blocked extension\n',oc.perm(j),length(seq));
+            fprintf('Strand %d.%d blocked extension\n',obj.getid(seqs{j}),length(seq));
             continue;
           end
 
@@ -269,7 +280,7 @@ classdef PCRSimul < handle
           newconc(end+1)=p.pairfrac(endpos,end)*oc.conc;
           if newconc(end)>=obj.args.mindisplayconc
             fprintf('Strand %d.%d (%c) unpaired with frac=%g -> %s (#%d)\n', ...
-                    oc.perm(j), length(seq), seq(end), p.pairfrac(endpos,end),concfmt(newconc(end)),obj.getid(newseqs{end}));
+                    obj.getid(seqs{oc.perm(j)}), length(seq), seq(end), p.pairfrac(endpos,end),concfmt(newconc(end)),obj.getid(newseqs{end}));
           end
           
           % Go through all the possible pairings
@@ -283,7 +294,7 @@ classdef PCRSimul < handle
             newconc(end+1)=pconc;
             if pconc>=obj.args.mindisplayconc
               fprintf('Strand %d.%d (%c) anneals to strand %2d.%-3d (%c) with frac=%g -> %s (#%d)\n', ...
-                      oc.perm(j), length(seq), seq(end), strand(k), strandpos(k), seqk(strandpos(k)), p.pairfrac(endpos,k),concfmt(pconc),obj.getid(newseqs{end}));
+                      obj.getid(seqs{oc.perm(j)}), length(seq), seq(end), strandid(k), strandpos(k), seqk(strandpos(k)), p.pairfrac(endpos,k),concfmt(pconc),obj.getid(newseqs{end}));
             end
             
             if newconc(end)>obj.args.mindisplayconc
@@ -345,8 +356,8 @@ classdef PCRSimul < handle
       
       setfig('seqs');clf;
       peakconc=max(trackconc,[],2);   % Peak of each sequence
-      minplotconc=0;
-      if length(peakconc)>maxplot
+      minplotconc=obj.args.mindisplayconc;
+      if sum(peakconc>=minplotconc)>maxplot
         minplotconc=prctile(peakconc,(1-maxplot/length(peakconc))*100);
       end
       sel=peakconc>=minplotconc;
@@ -356,11 +367,12 @@ classdef PCRSimul < handle
       leg={};
       for i=1:length(trackseqs)
         if sel(i)
-          leg{end+1}=sprintf('%d %s %s',obj.getid(trackseqs{i}),getlabel(trackseqs{i},obj.labels),concfmt(trackconc(i,end)));
+          leg{end+1}=sprintf('%2d %10.10s %s',obj.getid(trackseqs{i}),concfmt(trackconc(i,end)),getlabel(trackseqs{i},obj.labels));
         end
       end
       
-      h=legend(leg,'Location','EastOutside');
+      h=legend(leg,'Location','West');
+      legend boxoff;
       set(h,'Interpreter','none');
     end
   end
