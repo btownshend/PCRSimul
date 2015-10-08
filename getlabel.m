@@ -1,9 +1,11 @@
-% Build a getlabel for a sequence
+% Build a label for a sequence
 function s=getlabel(seq,l,depth)
   maxliteral=6;
+  s='xxx';
   if nargin<3
     depth=1;
   end
+  %fprintf('getlabel(%s,l,%d)\n', seq,depth);
   if isempty(seq)
     s='';
     return;
@@ -26,6 +28,14 @@ function s=getlabel(seq,l,depth)
     end
   end
 
+  % Check for N* prefix
+  nlen=find([seq,'X']~='N',1)-1;
+  if nlen>1
+    %fprintf('Prefix nlen=%d\n', nlen);
+    s=sprintf('<N%d>%s',nlen,getlabel(seq(nlen+1:end),l,depth+1));
+    return;
+  end
+  
   % getlabel suffix?
   for m=1:length(seq)-maxliteral
     if l.isKey(seq(m:end))
@@ -34,6 +44,14 @@ function s=getlabel(seq,l,depth)
     end
   end
 
+  % Check for N* suffix
+  nlen=find([seq(end:-1:1),'X']~='N',1)-1;
+  if nlen>1
+    %fprintf('Suffix nlen=%d\n', nlen);
+    s=sprintf('%s<N%d>',getlabel(seq(1:end-nlen),l,depth+1),nlen);
+    return;
+  end
+  
   % No matches - trim by 1 on each end and recheck
   if length(seq)<maxliteral
     s=seq;
