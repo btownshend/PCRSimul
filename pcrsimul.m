@@ -197,7 +197,7 @@ classdef PCRSimul < handle
       for i=1:length(genseqs)
         for j=1:length(genseqs{i})
           if genseqs{i}(j)=='N'
-            genseqs{i}(j)=nuc(randi(1,1,1));
+            genseqs{i}(j)=nuc(randi(4,1,1));
           end
         end
       end
