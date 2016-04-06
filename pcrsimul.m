@@ -47,6 +47,8 @@ classdef PCRSimul < handle
       obj.labels('GCTGTCACCGGA')='s31';
       obj.labels('TCCGGTCTGATGAGTCC')='s12';
       obj.labels('GGACGAAACAGC')='s23';
+      obj.labels('GCTGTC')='s3a';
+      obj.labels('ACCGGA')='s1a';
 
       % Add RC of all labels
       k=obj.labels.keys();
@@ -110,7 +112,7 @@ classdef PCRSimul < handle
       seqs=cy.seqs(sel);
       concs=cy.concentrations(sel);
       for i=1:length(seqs)
-        fprintf('%3d %s %3d %-25s %s\n',obj.getid(seqs{i}), concfmt(concs(i)),length(seqs{i}),getlabel(seqs{i},obj.args.labels,1),seqs{i});
+        fprintf('%3d %s %3d %-25s        %s\n',obj.getid(seqs{i}), concfmt(concs(i)),length(seqs{i}),getlabel(seqs{i},obj.args.labels,1),seqs{i});
       end
       fprintf('Total: %s\n', concfmt(sum(concs),2));
     end
