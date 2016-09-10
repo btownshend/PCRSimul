@@ -1,4 +1,7 @@
-function s=concfmt(c)
+function s=concfmt(c,dpoints)
+if nargin<2
+  dpoints=1;
+end
 if c>=1
   units='M';
 elseif c>=1e-3
@@ -12,9 +15,11 @@ elseif c>=1e-12
 elseif c>=1e-15
   units='fM'; c=c*1e15;
 else
-  s=sprintf('%7.2g M',c);
+  fmt=sprintf('%%%d.%dg M',dpoints+5,dpoints+1);
+  s=sprintf(fmt,c);
   return;
 end
-s=sprintf('%5.1f %-2.2s',c,units);
+fmt=sprintf('%%%d.%df %%-2.2s',dpoints+4,dpoints);
+s=sprintf(fmt,c,units);
 
     
