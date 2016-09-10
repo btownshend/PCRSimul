@@ -25,6 +25,7 @@ classdef PCRSimul < handle
     cycle;   % Structure array of cycle data -- cycle(1) is input, cycle(2) is result of 1 cycle, etc.
     seqids;
     maxseqid;
+    src;	% Traceback to find src of sequences - src(n,i1,i2) is concentraion of n from from i1+i2
   end
 
   methods
@@ -93,12 +94,15 @@ classdef PCRSimul < handle
       id=obj.seqids(seq);
     end
       
-    function printseqs(obj,cycle,mindisplayconc)
+    function printseqs(obj,cycle,mindisplayconc,showsrc)
       if nargin<2 || isempty(cycle)
         cycle=length(obj.cycle);
       end
       if nargin<3 || isempty(mindisplayconc)
         mindisplayconc=obj.args.mindisplayconc;
+      end
+      if nargin<4
+        showsrc=false;
       end
       cy=obj.cycle(cycle);
       sel=abs(cy.concentrations)>=mindisplayconc;
@@ -113,6 +117,20 @@ classdef PCRSimul < handle
       concs=cy.concentrations(sel);
       for i=1:length(seqs)
         fprintf('%3d %s %3d %-25s        %s\n',obj.getid(seqs{i}), concfmt(concs(i)),length(seqs{i}),getlabel(seqs{i},obj.args.labels,1),seqs{i});
+        if showsrc
+          src=squeeze(obj.src(obj.getid(seqs{i}),:,:));
+          if any(any(src>0))
+            fprintf('         ');
+            for si=1:size(src,1)
+              for sj=1:size(src,2)
+                if src(si,sj)>0
+                  fprintf('%d+%d->%s ',si,sj,concfmt(src(si,sj)));
+                end
+              end
+            end
+            fprintf('\n');
+          end
+        end
       end
       fprintf('Total: %s\n', concfmt(sum(concs),2));
     end
@@ -169,6 +187,20 @@ classdef PCRSimul < handle
       ylabel('Conc(dsDNA) \mu M');
     end
 
+    function addsrc(obj,newseq,s1,s2,conc)
+    % Add an annotation of creating conc of newseq from s1+s2
+      nid=obj.getid(newseq);
+      id1=obj.getid(s1);
+      id2=obj.getid(s2);
+      if nid==id1 || nid==id2
+        % Not creating a new strand
+        return;
+      end
+      if nid>size(obj.src,1) || id1>size(obj.src,2) || id2>size(obj.src,3)
+        obj.src(nid,id1,id2)=0;
+      end
+      obj.src(nid,id1,id2)=obj.src(nid,id1,id2)+conc;
+    end
 
     function [seqs,concentrations,c,dsconc]=onecycle(obj,seqs,concentrations)
       % Initialize for this cycle
@@ -298,7 +330,7 @@ classdef PCRSimul < handle
               fprintf('Strand %d.%d (%c) anneals to strand %2d.%-3d (%c) with frac=%g -> %s (#%d)\n', ...
                       obj.getid(seqs{oc.perm(j)}), length(seq), seq(end), strandid(k), strandpos(k), seqk(strandpos(k)), p.pairfrac(endpos,k),concfmt(pconc),obj.getid(newseqs{end}));
             end
-            
+            obj.addsrc(newseqs{end},seq,seqs{strand(k)},pconc);
             if newconc(end)>obj.args.mindisplayconc
               off1=0;
               alignpos=length(seq)-1;
