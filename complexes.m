@@ -3,7 +3,7 @@ function c=complexes(seqs,varargin)
 defaults=struct('maxsize',2,'temp',55,'cutoff',.001,'concentrations',[],'verbose',false,'ordered',true,'sodium',1.0,'mg',0.0,'pairs',false);
 args=processargs(defaults,varargin);
 
-nuprefix='export NUPACKHOME=/Users/bst/Dropbox/SynBio/src/nupack3.0.4; $NUPACKHOME/bin';
+nuprefix='export NUPACKHOME=/Users/bst/Dropbox/SynBio/src/nupack3.0.6; $NUPACKHOME/bin';
 tmpfile=tempname('/tmp');
 fd=fopen([tmpfile,'.in'],'w');
 fprintf(fd,'%d\n',length(seqs));

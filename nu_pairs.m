@@ -3,7 +3,7 @@ function c=nu_pairs(seqs,ocperm,varargin)
 defaults=struct('maxsize',2,'temp',55,'cutoff',.001,'verbose',false,'sodium',1,'mg',0);
 args=processargs(defaults,varargin);
 
-nuprefix='export NUPACKHOME=/Users/bst/Dropbox/SynBio/src/nupack3.0.4; $NUPACKHOME/bin';
+nuprefix='export NUPACKHOME=/Users/bst/Dropbox/SynBio/src/nupack3.0.6; $NUPACKHOME/bin';
 tmpfile=tempname('/tmp');
 fd=fopen([tmpfile,'.in'],'w');
 fprintf(fd,'%d\n',length(seqs));
