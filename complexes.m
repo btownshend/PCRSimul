@@ -1,6 +1,6 @@
 % Find complexes and optionally concentrations from mix of oligos
 function c=complexes(seqs,varargin)
-defaults=struct('maxsize',2,'temp',55,'cutoff',.001,'concentrations',[],'verbose',false,'ordered',true,'sodium',1.0,'mg',0.0,'pairs',false);
+defaults=struct('maxsize',2,'temp',55,'cutoff',.001,'concentrations',[],'verbose',false,'ordered',true,'sodium',1.0,'mg',0.0,'pairs',false,'material','dna1998','dangles','some');
 args=processargs(defaults,varargin);
 
 nuprefix='export NUPACKHOME=/Users/bst/Dropbox/SynBio/src/nupack3.0.6; $NUPACKHOME/bin';
@@ -23,7 +23,7 @@ else
   pairsopt='';
 end
 
-cmd=sprintf('%s/complexes -sodium %f -mg %f -T %f -material dna %s -cutoff %f %s %s',nuprefix,args.sodium, args.mg,args.temp,pairsopt,args.cutoff, orderedopt, tmpfile);
+cmd=sprintf('%s/complexes -sodium %f -magnesium %f -T %f -material %s -dangles %s %s -cutoff %f %s %s',nuprefix,args.sodium, args.mg,args.temp,args.material,args.dangles,pairsopt,args.cutoff, orderedopt, tmpfile);
 if args.verbose
   fprintf('cmd=%s\n',cmd);
 end
