@@ -25,7 +25,7 @@ classdef PCRSimul < handle
     cycle;   % Structure array of cycle data -- cycle(1) is input, cycle(2) is result of 1 cycle, etc.
     seqids;
     maxseqid;
-    src;	% Traceback to find src of sequences - src(n,i1,i2) is concentraion of n from from i1+i2
+    src;	% Traceback to find src of sequences - src{n}(i1,i2) is concentraion of n from from i1+i2
   end
 
   methods
@@ -69,7 +69,7 @@ classdef PCRSimul < handle
     end
     
     function run(obj,ncycles)  
-      fprintf('********* Running %d cycles of simulation at T=%.0fC, Anneal time=%.0f sec, ka=%.1g /M/s\n', ncycles, obj.args.temp, obj.args.time, obj.args.ka);
+      fprintf('********* Running %d cycles of simulation at T=%.0fC, Anneal time=%.0f sec, [Na]=%.1f mM, [Mg]=%.1f mM, ka=%.1g /M/s\n', ncycles, obj.args.temp, obj.args.time, obj.args.sodium*1e3, obj.args.mg*1e3, obj.args.ka);
 
       for cycle=length(obj.cycle)+(0:ncycles-1)
         tic;
@@ -118,13 +118,15 @@ classdef PCRSimul < handle
       for i=1:length(seqs)
         fprintf('%3d %s %3d %-25s        %s\n',obj.getid(seqs{i}), concfmt(concs(i)),length(seqs{i}),getlabel(seqs{i},obj.args.labels,1),seqs{i});
         if showsrc
-          src=squeeze(obj.src(obj.getid(seqs{i}),:,:));
+          src=obj.src{obj.getid(seqs{i})};
           if any(any(src>0))
-            fprintf('         ');
+            fprintf('                                                   ');
             for si=1:size(src,1)
               for sj=1:size(src,2)
-                if src(si,sj)>0
-                  fprintf('%d+%d->%s ',si,sj,concfmt(src(si,sj)));
+                z=full(src(si,sj));
+                if z>0 && z>.01*concs(i)
+                  cc=concfmt(z);
+                  fprintf('%d+%d->%s ',si,sj,cc(cc~=' '));
                 end
               end
             end
@@ -196,10 +198,14 @@ classdef PCRSimul < handle
         % Not creating a new strand
         return;
       end
-      if nid>size(obj.src,1) || id1>size(obj.src,2) || id2>size(obj.src,3)
-        obj.src(nid,id1,id2)=0;
+      if nid>length(obj.src)
+        obj.src{nid}=sparse(zeros(id1,id2));
       end
-      obj.src(nid,id1,id2)=obj.src(nid,id1,id2)+conc;
+      if id1>size(obj.src{nid},1) || id2>size(obj.src{nid},2)
+        obj.src{nid}(id1,id2)=0;
+      end
+      obj.src{nid}(id1,id2)=obj.src{nid}(id1,id2)+conc;
+      %fprintf('obj.src{%d}(%d,%d)=%g\n', nid, id1, id2, full(obj.src{nid}(id1,id2)));
     end
 
     function [seqs,concentrations,c,dsconc]=onecycle(obj,seqs,concentrations)
