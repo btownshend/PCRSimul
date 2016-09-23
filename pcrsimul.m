@@ -30,7 +30,7 @@ classdef PCRSimul < handle
 
   methods
     function obj=PCRSimul(seqs,concentrations,varargin)
-      defaults=struct('temp',55,'maxsize',2,'verbose',false,'minconc',1e-12,'cutoff',1e-6,'mindisplayconc',1e-12,'labels',containers.Map(),'time',30,'ka',1e6,'sodium',0.050,'mg',0.002,'maxstrands',50);
+      defaults=struct('temp',55,'maxsize',2,'verbose',false,'minconc',1e-12,'cutoff',1e-6,'mindisplayconc',1e-12,'labels',containers.Map(),'time',30,'ka',1e6,'sodium',0.050,'mg',0.002,'maxstrands',50,'dangles','some');
       obj.args=processargs(defaults,varargin);
 
       % Remove any blanks, make sequence upper case
@@ -236,7 +236,7 @@ classdef PCRSimul < handle
         end
       end
       
-      c=complexes(cellfun(@(z) strrep(z,'*',''), genseqs, 'UniformOutput',false),'temp',obj.args.temp,'maxsize',obj.args.maxsize,'cutoff',obj.args.cutoff,'verbose',obj.args.verbose,'concentrations',abs(concentrations),'sodium',obj.args.sodium,'mg',obj.args.mg);
+      c=complexes(cellfun(@(z) strrep(z,'*',''), genseqs, 'UniformOutput',false),'temp',obj.args.temp,'maxsize',obj.args.maxsize,'cutoff',obj.args.cutoff,'verbose',obj.args.verbose,'concentrations',abs(concentrations),'sodium',obj.args.sodium,'mg',obj.args.mg,'dangles',obj.args.dangles);
       fprintf('done\n');
       
       fprintf('Found %d possible ordered complexes,',length(c.ocomplex));

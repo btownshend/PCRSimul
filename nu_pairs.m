@@ -1,6 +1,6 @@
 % Find pair probability for given ordered complex
 function c=nu_pairs(seqs,ocperm,varargin)
-defaults=struct('maxsize',2,'temp',55,'cutoff',.001,'verbose',false,'sodium',1,'mg',0);
+defaults=struct('maxsize',2,'temp',55,'cutoff',.001,'verbose',false,'sodium',1,'mg',0,'material','dna1998','dangles','some');
 args=processargs(defaults,varargin);
 
 nuprefix='export NUPACKHOME=/Users/bst/Dropbox/SynBio/src/nupack3.0.6; $NUPACKHOME/bin';
@@ -13,7 +13,7 @@ end
 fprintf(fd,'%d ',ocperm);
 fprintf(fd,'\n');
 fclose(fd);
-cmd=sprintf('%s/pairs -T %f -material dna -cutoff %f -sodium %g -magnesium %g -multi %s',nuprefix,args.temp,args.cutoff, args.sodium, args.mg, tmpfile);
+cmd=sprintf('%s/pairs -T %f -material %s -dangles %s -cutoff %f -sodium %g -magnesium %g -multi %s',nuprefix,args.temp,args.material,args.dangles,args.cutoff, args.sodium, args.mg, tmpfile);
 if args.verbose
   fprintf('cmd=%s\n',cmd);
 end
