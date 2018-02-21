@@ -141,7 +141,7 @@ classdef PCRSimul < handle
                 z=full(src(si,sj));
                 if z>0 && z>.01*concs(i)
                   cc=concfmt(z);
-                  fprintf('%d+%d->%s ',si,sj,cc(cc~=' '));
+                  %fprintf('%d+%d->%s ',si,sj,cc(cc~=' '));
                 end
               end
             end
@@ -223,6 +223,43 @@ classdef PCRSimul < handle
       %fprintf('obj.src{%d}(%d,%d)=%g\n', nid, id1, id2, full(obj.src{nid}(id1,id2)));
     end
 
+    function p=zipup(obj,p)
+    % 3' ends of a duplex may be breathing and show a low pairing fraction
+    % However, polymerase annealing probably stabilizes that, so we should really use a higher pairing frac
+    % As a kludge, zip-up the 3' end by working backward along the duplex up to 8 nucleotides and replace each pairfrac with the prior ones
+      endpos=0;
+      for j=1:length(p.perm)
+        seq=p.seqs{p.perm(j)};
+        endpos=endpos+length(strrep(seq,'*',''));
+        
+        if seq(end)=='*'
+          continue;
+        end
+
+        % Go through all the possible pairings
+        for k=1:length(p.pairfrac(endpos,:))-1
+          if p.pairfrac(endpos,k)==0
+            continue;
+          end
+          zipfrac=p.pairfrac(endpos,k);
+          for i=1:5  % Check adjacent basepairs nucleotides
+            if endpos-i<1 || k+i > size(p.pairfrac,2)-1 || p.pairfrac(endpos-i,k+i)==0
+              break;
+            end
+            if p.pairfrac(endpos-i,k+i)>zipfrac
+              zipfrac=p.pairfrac(endpos-i,k+i);
+            end
+          end
+          adj=min(p.pairfrac(endpos,end),zipfrac-p.pairfrac(endpos,k));
+          if adj>0.5
+            fprintf('zipup: p.pairfrac(%d,%d)=%f -> %f, unpaired=%f, adj=%f\n',endpos,k,p.pairfrac(endpos,k),zipfrac, p.pairfrac(endpos,end), adj);
+          end
+          p.pairfrac(endpos,k)=p.pairfrac(endpos,k)+adj;
+          p.pairfrac(endpos,end)=p.pairfrac(endpos,end)-adj;
+        end
+      end
+    end
+    
     function [seqs,concentrations,c,dsconc]=onecycle(obj,seqs,concentrations)
       % Initialize for this cycle
       newseqs={};newconc=[];
@@ -294,17 +331,8 @@ classdef PCRSimul < handle
 
         % Compute base pair probabilities for this complex
         p=nu_pairs(cellfun(@(z) strrep(z,'*',''), genseqs, 'UniformOutput',false),oc.perm,'temp',obj.args.temp,'cutoff',obj.args.cutoff,'verbose',obj.args.verbose,'sodium',obj.args.sodium,'mg',obj.args.mg);
-        c.ocomplex(i).pairs=p;	% Keep for reference
+        c.ocomplex(i).rawpairs=p;	% Keep for reference
         
-        % Compute number of double stranded bonds
-        ssconc1=sum(p.pairfrac(:,end))*oc.conc;
-        dsconc1=sum(sum(p.pairfrac(:,1:end-1)))*oc.conc;
-        if oc.conc>=obj.args.mindisplayconc
-          fprintf('Complex %d [%s]: %s (%s@eq), unpaired nucleotides: %s, paired: %s, total: %s\n', i, sprintf('%d ',arrayfun(@(z) obj.getid(seqs{z}),oc.perm)),concfmt(oc.conc), concfmt(oc.eqconc), concfmt(ssconc1), concfmt(dsconc1), concfmt(ssconc1+dsconc1));
-        end
-        dsconc=dsconc+dsconc1;
-        ssconc=ssconc+ssconc1;
-
         % Map positions to strand, strandpos
         endpos=0;
         strand=[]; strandpos=[]; strandid=[];
@@ -316,6 +344,23 @@ classdef PCRSimul < handle
           endpos=endpos+length(seq);
         end
         
+        p.strandid=strandid;
+        p.strandpos=strandpos;
+        rawp=p;
+        % Zip-up 3' ends
+        p=obj.zipup(rawp);
+        
+        c.ocomplex(i).pairs=p;	% Keep for reference
+
+        % Compute number of double stranded bonds
+        ssconc1=sum(p.pairfrac(:,end))*oc.conc;
+        dsconc1=sum(sum(p.pairfrac(:,1:end-1)))*oc.conc;
+        if oc.conc>=obj.args.mindisplayconc
+          fprintf('Complex %d [%s]: %s (%s@eq), unpaired nucleotides: %s, paired: %s, total: %s\n', i, sprintf('#%d ',arrayfun(@(z) obj.getid(seqs{z}),oc.perm)),concfmt(oc.conc), concfmt(oc.eqconc), concfmt(ssconc1), concfmt(dsconc1), concfmt(ssconc1+dsconc1));
+        end
+        dsconc=dsconc+dsconc1;
+        ssconc=ssconc+ssconc1;
+
         % Check each 3' end
         endpos=0;
         for j=1:length(oc.perm)
