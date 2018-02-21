@@ -25,7 +25,7 @@ if args.verbose
   fprintf('%s',r);
 end
 
-c=defaults;
+c=args;
 c.seqs=seqs;
 c.perm=ocperm;
 
