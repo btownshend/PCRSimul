@@ -50,11 +50,15 @@ classdef PCRSimul < handle
       obj.labels('GGACGAAACAGC')='s23';
       obj.labels('GCTGTC')='s3a';
       obj.labels('ACCGGA')='s1a';
-
+      obj.labels('AATGATACGGCGACCACCGA')='PE1a';
+      obj.labels('GATCTACACTCTTTCCCTACACGACGCTCTTCCGATCT')='PE1b';
+      obj.labels('GTGACTGGAGTTCAGACGTGTGCTCTTCCGATCT')='PM2a-RC';
+      obj.labels('CAAGCAGAAGACGGCATACG')='PM2b-RC';
+      
       % Add RC of all labels
       k=obj.labels.keys();
       for i=1:length(k)
-        obj.labels(rc(k{i}))=[obj.labels(k{i}),'-RC'];
+        obj.labels(rc(k{i}))=strrep([obj.labels(k{i}),'-RC'],'-RC-RC','');
       end
 
       % Initialize tracking
