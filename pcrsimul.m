@@ -120,7 +120,18 @@ classdef PCRSimul < handle
       seqs=cy.seqs(sel);
       concs=cy.concentrations(sel);
       for i=1:length(seqs)
-        fprintf('%3d %s %3d %-25s        %s\n',obj.getid(seqs{i}), concfmt(concs(i)),length(seqs{i}),getlabel(seqs{i},obj.args.labels,1),seqs{i});
+        if cycle>1
+          pcy=obj.cycle(cycle-1);
+          prior=pcy.concentrations(strcmp(pcy.seqs,seqs{i}));
+          if isempty(prior)
+            gain=nan;
+          else
+            gain=concs(i)/prior;
+          end
+        else
+          gain=nan;
+        end
+        fprintf('%3d %s %4.2f %3d %-25s        %s\n',obj.getid(seqs{i}), concfmt(concs(i)),gain, length(seqs{i}),getlabel(seqs{i},obj.args.labels),seqs{i});
         if showsrc
           src=obj.src{obj.getid(seqs{i})};
           if any(any(src>0))
