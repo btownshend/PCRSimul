@@ -35,7 +35,7 @@ if args.verbose
   fprintf('%s',r);
 end
 
-c=defaults;
+c=args;
 c.seqs=seqs;
 
 % Load .cx file and store result in c.strands, c.dG
